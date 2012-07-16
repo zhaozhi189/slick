@@ -12,6 +12,8 @@ import scala.slick.util.{CollectionLinearizer,RecordLinearizer,ValueLinearizer}
 import scala.slick.session.{Session}
 import scala.reflect.ClassTag
 import scala.slick.compiler.CompilationState
+import scala.tools.reflect.Eval
+
 
 trait QueryableBackend
 
@@ -247,7 +249,17 @@ class SlickBackend(driver:BasicDriver) extends QueryableBackend{
           => sq.Pure( Library.CountAll( s2sq(scala_lhs).node ) )
 
         case tree if tree.tpe.erasure <:< typeOf[Queryable[_]].erasure
-            => toQuery( eval(tree).asInstanceOf[Queryable[_]] )
+            => {
+              import scala.tools.reflect.ToolBoxFactory
+              import scala.reflect.api.JavaUniverse
+              val factory = new ToolBoxFactory[JavaUniverse](scala.reflect.runtime.universe) { val mirror = cm.asInstanceOf[this.u.Mirror] }
+              val toolBox = factory.mkToolBox()
+              println(showRaw(tree))
+              val value = toolBox.runExpr(
+                            toolBox.resetAllAttrs(tree.asInstanceOf[toolBox.u.Tree])
+                          ).asInstanceOf[Queryable[_]]
+              toQuery( value )
+            }
 
         case tree => throw new Exception( "You probably used currently not supported scala code in a query. No match for:\n" + showRaw(tree) )
       }
