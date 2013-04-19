@@ -29,7 +29,7 @@ object YYMain extends NumericOps with TupleOps {
     val tuple2 = new YYTuple2(c, a)
   }
 
-  def main(args: Array[String]): Unit = {
+  def main1(args: Array[String]): Unit = {
     //    val intTpe = H2Driver.columnTypes.intJdbcType
     import H2Driver.Implicit._
     val intTpe = implicitly[TypedType[Int]]
@@ -39,6 +39,37 @@ object YYMain extends NumericOps with TupleOps {
     val compiled = H2Driver.selectStatementCompiler.run(tableNode).tree
     Dump(compiled)
     testGeneratedNode(compiled)
+  }
+
+  def main(args: Array[String]) {
+    import scala.slick.driver.H2Driver.simple._
+    import Database.threadLocalSession
+    import scala.slick.lifted.Projection
+
+    object TableA extends Table[(Int, Int)]("TABLE_A") {
+      def id = column[Int]("A_ID")
+      def grade = column[Int]("A_GRADE")
+      def * = id ~ grade
+    }
+
+    Database.forURL("jdbc:h2:mem:test1", driver = "org.h2.Driver") withSession {
+      (TableA.ddl).create
+
+      TableA.insert((14, 1))
+      TableA.insert((16, 1))
+      TableA.insert((18, 2))
+      TableA.insert((20, 3))
+
+      Query(TableA).filter(_.grade < 8)
+
+      val yq = YYQuery(TableA)
+      val yId = YYColumn(TableA.id)
+      val y15 = YYConstColumn(15)
+
+      val yr = yq.map(x => x)
+
+      println(yr.query.list)
+    }
   }
 
   def testGeneratedNode(node: Node) {
@@ -53,7 +84,7 @@ object YYMain extends NumericOps with TupleOps {
     Database.forURL("jdbc:h2:mem:test1", driver = "org.h2.Driver") withSession {
       (TableA.ddl).create
 
-      TableA.insert(2)
+      TableA.insert(14)
       println(H2Driver.createQueryInvoker(node).first)
     }
   }
