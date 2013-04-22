@@ -60,14 +60,12 @@ trait YYColumn[T] extends ColumnOps[T] with YYRep[T] {
   override def underlying = column
   def extendedColumn = new PlainColumnExtensionMethods(column)
   def n = Node(column)
-  implicit def implicitTpe: TypedType[T]
   def om[T2, TR] = OptionMapper2.plain.asInstanceOf[OptionMapper2[T, T, TR, T, T2, TR]]
 }
 
 object YYColumn {
   def apply[T](c: Column[T]): YYColumn[T] = new YYColumn[T] {
     val column = c
-    override implicit def implicitTpe = c.tpe
   }
 }
 
@@ -92,10 +90,8 @@ trait ColumnOps[T] { self: YYColumn[T] =>
   def isNotNull: YYColumn[Boolean] = YYColumn(extendedColumn.isNotNull)
 
   def is[T2](e: YYColumn[T2]): YYColumn[Boolean] =
-    //    Library.==.column(n, Node(e.column))(implicitTpe)
     YYColumn(extendedColumn.is[T2, Boolean](e.column)(om[T2, Boolean]))
   def ===[T2](e: YYColumn[T2]): YYColumn[Boolean] =
-    //    Library.==.column(n, Node(e.column))(implicitTpe)
     YYColumn(extendedColumn.===[T2, Boolean](e.column)(om[T2, Boolean]))
 }
 
@@ -111,20 +107,12 @@ trait YYQuery[U] extends QueryOps[U] with YYRep[Seq[U]] {
   }
   type E <: YYRep[U]
   def value: E = YYValue[U, E](repValue)
-  //  def repToYY(rep: Rep[U]): YYRep[U] =
-  //    rep match {
-  //      case col: Column[U] => YYColumn(col)
-  //      case tab: AbstractTable[U] => YYTable(tab)
-  //    }
-  implicit def implicitShape = YYShape.ident[U]
   override def underlying = query
 }
 
 object YYQuery {
   def apply[U](q: Query[Rep[U], U]): YYQuery[U] = {
-    //    YYDebug("YYQuery apply started")
     val e = YYUtils.valueOfQuery(q)
-    //    YYDebug(e)
     class YYQueryInst[E1 <: YYRep[U]] extends YYQuery[U] {
       type E = E1
       val query = q
@@ -144,20 +132,11 @@ object YYQuery {
 }
 
 trait QueryOps[T] { self: YYQuery[T] =>
-  //  class Typer[S, S1]
-  //  implicit def typer[S] = new Typer[S, YYRep[S]]
-  //  implicit def rep[S] = new YYRep[S] {}
-  //  def map[S](projection: YYRep[T] => YYRep[S]): YYQuery[S] = {
-  //  def map[S](projection: E => YYRep[S]): YYQuery[S] = {
   def map[S](projection: E => YYRep[S]): YYQuery[S] = {
-    //  def map[S: YYRep](projection: E => YYRep[S]): YYQuery[S] = {
-    //    YYDebug("Map started")
     def underlyingProjection(x: Rep[T]): Rep[S] = projection({
-      //      repToYY(x)
       YYValue[T, E](x)
     }).underlying
     val liftedResult = query.map(underlyingProjection)(YYShape.ident[S])
-    //    YYDebug(liftedResult)
     YYQuery(liftedResult)
   }
   //  def flatMap[S](projection: YYRep[T] => YYQuery[S]): YYQuery[S] = {

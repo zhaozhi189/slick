@@ -5,4 +5,6 @@ trait YYSlickCake {
   type Column[T] = YYColumn[T]
   type Table[T] = YYTable[T]
   type Query[T] = YYQuery[T]
+  
+  
 }
