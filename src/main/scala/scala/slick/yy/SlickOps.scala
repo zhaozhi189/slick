@@ -32,6 +32,19 @@ trait YYWraper[UT] {
 
 trait YYRep[T] extends YYWraper[T]
 
+object YYValue {
+  def applyUntyped[T](rep: Rep[T]): YYRep[T] = {
+    rep match {
+      case c: Column[_] => YYColumn(c)
+      case t: AbstractTable[_] => YYTable(t)
+    }
+  }
+
+  def apply[T, E](rep: Rep[T]): E = {
+    YYValue.applyUntyped(rep).asInstanceOf[E]
+  }
+}
+
 trait YYColumn[T] extends ColumnOps[T] with YYRep[T] {
   val column: Column[T]
   override def underlying = column
@@ -82,40 +95,75 @@ object YYShape {
 
 trait YYQuery[U] extends QueryOps[U] with YYRep[Seq[U]] {
   val query: Query[Rep[U], U]
-  def value: Rep[U] = query match {
+  def repValue: Rep[U] = query match {
     case nwq: NonWrappingQuery[_, _] => nwq.unpackable.value
     case wq: WrappingQuery[_, _] => wq.base.value
   }
-  def repToYY(rep: Rep[U]): YYRep[U] =
-    rep match {
-      case col: Column[U] => YYColumn(col)
-      case tab: AbstractTable[U] => YYTable(tab)
-    }
+  type E <: YYRep[_]
+  def value: E = YYValue[U, E](repValue)
+  //  def repToYY(rep: Rep[U]): YYRep[U] =
+  //    rep match {
+  //      case col: Column[U] => YYColumn(col)
+  //      case tab: AbstractTable[U] => YYTable(tab)
+  //    }
   implicit def implicitShape = YYShape.ident[U]
   override def underlying = query
 }
 
 object YYQuery {
-  def apply[U](q: Query[Rep[U], U]) =
-    new YYQuery[U] with QueryOps[U] {
-      val query = q.asInstanceOf[Query[Rep[U], U]]
+  def apply[U](q: Query[Rep[U], U]): YYQuery[U] = {
+    //    YYDebug("YYQuery apply started")
+    val e = YYUtils.valueOfQuery(q)
+    //    YYDebug(e)
+    class YYQueryInst[E1 <: YYRep[U]] extends YYQuery[U] {
+      type E = E1
+      val query = q
+      override def repValue: Rep[U] = e
     }
-  def apply[E](e: Rep[E]) =
-    new YYQuery[E] with QueryOps[E] {
-      val query = Query(e)(YYShape.ident[E])
-      override def value: Rep[E] = e
+    e match {
+      case col: Column[U] => new YYQueryInst[YYColumn[U]] {}
+      case tab: AbstractTable[U] => new YYQueryInst[YYTable[U]] {}
     }
+  }
+
+  def apply[U](v: YYRep[U]): YYQuery[U] = {
+    val query = Query(v.underlying)(YYShape.ident[U])
+    YYQuery(query)
+  }
 }
 
 trait QueryOps[T] { self: YYQuery[T] =>
-  def map[S](projection: YYRep[T] => YYRep[S]): YYQuery[S] = {
+  //  class Typer[S, S1]
+  //  implicit def typer[S] = new Typer[S, YYRep[S]]
+  //  implicit def rep[S] = new YYRep[S] {}
+  //  def map[S](projection: YYRep[T] => YYRep[S]): YYQuery[S] = {
+  //  def map[S](projection: E => YYRep[S]): YYQuery[S] = {
+  def map[S](projection: E => YYRep[S]): YYQuery[S] = {
+    //  def map[S: YYRep](projection: E => YYRep[S]): YYQuery[S] = {
+    //    YYDebug("Map started")
     def underlyingProjection(x: Rep[T]): Rep[S] = projection({
-      repToYY(x)
+      //      repToYY(x)
+      YYValue[T, E](x)
     }).underlying
-    YYQuery(query.map(underlyingProjection)(YYShape.ident[S]))
+    val liftedResult = query.map(underlyingProjection)(YYShape.ident[S])
+    //    YYDebug(liftedResult)
+    YYQuery(liftedResult)
   }
   //  def flatMap[S](projection: YYRep[T] => YYQuery[S]): YYQuery[S] = {
   //    def qp(x: YYRep[T]): Query[Rep[S], S] = projection(x).query
   //    YYQuery(query.flatMap(qp))
   //  }
+}
+
+object YYUtils {
+  def valueOfQuery[U, T <: Rep[U]](query: Query[T, U]): T = query match {
+    case nwq: NonWrappingQuery[_, _] => nwq.unpackable.value
+    case wq: WrappingQuery[_, _] => wq.base.value
+  }
+}
+
+object YYDebug {
+  def apply(a: Any) {
+    System.err.println(a)
+  }
 }
