@@ -60,21 +60,24 @@ object YYMain extends NumericOps with TupleOps {
       TableA.insert((18, 2))
       TableA.insert((20, 3))
 
-      Query(TableA).map(x => x.grade)
-
       val yt = YYTable(TableA)
       //      val yq = YYQuery(TableA) // deprecated! :)
       val yq = YYQuery(yt)
       val yId = YYColumn(TableA.id)
       val y15 = YYConstColumn(15)
-      type YRT2 = yt.type
 
       println(yq.query.list)
 
-      val yr = yq.map((x) => x.asInstanceOf[YYRep[YRT2]])
+      //      val yr = yq.map(x => x.asInstanceOf[YYRep[yt.type]])
+      //      val yr = yq.map(x => (x: YYRep[yt.type]))
+      val yr = yq.map(x => x)
 
       println(yr.query.list)
 
+      //      val yrMap = yq.map(x => YYValue(x.underlying.asInstanceOf[TableA.type].id).asInstanceOf[YYRep[Int]])
+      val yrMap = yq.map(x => YYColumn(x.underlying.asInstanceOf[TableA.type].id))
+
+      println(yrMap.query.list)
     }
   }
 

@@ -40,7 +40,15 @@ object YYValue {
     }
   }
 
-  def apply[T, E](rep: Rep[T]): E = {
+  def apply[T](column: Column[T]): YYColumn[T] = {
+    YYColumn(column)
+  }
+
+  def apply[T](table: AbstractTable[T]): YYTable[T] = {
+    YYTable(table)
+  }
+
+  def apply[T, E <: YYRep[T]](rep: Rep[T]): E = {
     YYValue.applyUntyped(rep).asInstanceOf[E]
   }
 }
@@ -99,7 +107,7 @@ trait YYQuery[U] extends QueryOps[U] with YYRep[Seq[U]] {
     case nwq: NonWrappingQuery[_, _] => nwq.unpackable.value
     case wq: WrappingQuery[_, _] => wq.base.value
   }
-  type E <: YYRep[_]
+  type E <: YYRep[U]
   def value: E = YYValue[U, E](repValue)
   //  def repToYY(rep: Rep[U]): YYRep[U] =
   //    rep match {
