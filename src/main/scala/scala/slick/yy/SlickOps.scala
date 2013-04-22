@@ -1,6 +1,8 @@
 package scala.slick.yy
 
 import scala.slick.lifted.Column
+import scala.slick.lifted.Projection
+import scala.slick.lifted.Projection2
 import scala.slick.lifted.Query
 import scala.slick.ast.Node
 import scala.slick.ast.Library
@@ -131,6 +133,7 @@ object YYQuery {
     e match {
       case col: Column[U] => new YYQueryInst[YYColumn[U]] {}
       case tab: AbstractTable[U] => new YYQueryInst[YYTable[U]] {}
+      case tupN: Projection[U] => new YYQueryInst[YYProjection[U]]
     }
   }
 
@@ -161,6 +164,25 @@ trait QueryOps[T] { self: YYQuery[T] =>
   //    def qp(x: YYRep[T]): Query[Rep[S], S] = projection(x).query
   //    YYQuery(query.flatMap(qp))
   //  }
+}
+
+sealed trait YYProjection[T <: Product] extends YYRep[T] with Product
+
+object YYProjection {
+  def apply[T1, T2](tuple2: Projection2[T1, T2]): YYProjection2[T1, T2] = {
+    new YYProjection2(YYColumn(tuple2._1), YYColumn(tuple2._2))
+  }
+
+  def apply[T1, T2](_1: Column[T1], _2: Column[T2]): YYProjection2[T1, T2] = {
+    apply(_1 ~ _2)
+  }
+}
+
+final class YYProjection2[T1, T2](
+  override val _1: YYColumn[T1],
+  override val _2: YYColumn[T2])
+  extends Tuple2(_1, _2) with YYProjection[(T1, T2)] {
+  override def underlying = _1.underlying ~ _2.underlying
 }
 
 object YYUtils {

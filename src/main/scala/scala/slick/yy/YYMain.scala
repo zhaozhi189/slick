@@ -75,9 +75,13 @@ object YYMain extends NumericOps with TupleOps {
       println(yr.query.list)
 
       //      val yrMap = yq.map(x => YYValue(x.underlying.asInstanceOf[TableA.type].id).asInstanceOf[YYRep[Int]])
-      val yrMap = yq.map(x => YYColumn(x.underlying.asInstanceOf[TableA.type].id))
+      val yrMap = yq.map(x => YYValue(x.underlying.asInstanceOf[TableA.type].id))
 
       println(yrMap.query.list)
+
+      val yrTuple = yq.map(x => YYProjection(x.underlying.asInstanceOf[TableA.type].id, x.underlying.asInstanceOf[TableA.type].grade))
+
+      println(yrTuple.query.list)
     }
   }
 
