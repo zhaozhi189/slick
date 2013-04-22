@@ -23,6 +23,7 @@ import scala.slick.lifted.Rep
 import scala.slick.lifted.AbstractTable
 import scala.slick.lifted.NonWrappingQuery
 import scala.slick.lifted.WrappingQuery
+import scala.slick.lifted.CanBeQueryCondition
 
 trait SlickOps {
 
@@ -60,7 +61,7 @@ trait YYColumn[T] extends ColumnOps[T] with YYRep[T] {
   override def underlying = column
   def extendedColumn = new PlainColumnExtensionMethods(column)
   def n = Node(column)
-  def om[T2, TR] = OptionMapper2.plain.asInstanceOf[OptionMapper2[T, T, TR, T, T2, TR]]
+  implicit def om[T2, TR] = OptionMapper2.plain.asInstanceOf[OptionMapper2[T, T, TR, T, T2, TR]]
 }
 
 object YYColumn {
@@ -90,9 +91,11 @@ trait ColumnOps[T] { self: YYColumn[T] =>
   def isNotNull: YYColumn[Boolean] = YYColumn(extendedColumn.isNotNull)
 
   def is[T2](e: YYColumn[T2]): YYColumn[Boolean] =
-    YYColumn(extendedColumn.is[T2, Boolean](e.column)(om[T2, Boolean]))
+    YYColumn(extendedColumn is e.column)
   def ===[T2](e: YYColumn[T2]): YYColumn[Boolean] =
-    YYColumn(extendedColumn.===[T2, Boolean](e.column)(om[T2, Boolean]))
+    YYColumn(extendedColumn === e.column)
+  def >[T2](e: YYColumn[T2]): YYColumn[Boolean] =
+    YYColumn(extendedColumn > e.column)
 }
 
 object YYShape {
@@ -108,11 +111,13 @@ trait YYQuery[U] extends QueryOps[U] with YYRep[Seq[U]] {
   type E <: YYRep[U]
   def value: E = YYValue[U, E](repValue)
   override def underlying = query
+  object BooleanRepCanBeQueryCondition extends CanBeQueryCondition[Rep[Boolean]] {
+    def apply(value: Rep[Boolean]) = value.asInstanceOf[Column[Boolean]]
+  }
 }
 
 object YYQuery {
-  def apply[U](q: Query[Rep[U], U]): YYQuery[U] = {
-    val e = YYUtils.valueOfQuery(q)
+  def create[U](q: Query[Rep[U], U], e: Rep[U]): YYQuery[U] = {
     class YYQueryInst[E1 <: YYRep[U]] extends YYQuery[U] {
       type E = E1
       val query = q
@@ -125,9 +130,23 @@ object YYQuery {
     }
   }
 
+  def apply[U](q: Query[Rep[U], U]): YYQuery[U] = {
+    val e = YYUtils.valueOfQuery(q)
+    create(q, e)
+  }
+
   def apply[U](v: YYRep[U]): YYQuery[U] = {
     val query = Query(v.underlying)(YYShape.ident[U])
-    YYQuery(query)
+    create(query, v.underlying)
+  }
+
+  def apply[U, U1 <: YYTable[U]](v: U1): YYQuery[U] = {
+    val q = Query(v.underlying)(YYShape.ident[U])
+    new YYQuery[U] {
+      type E = U1
+      val query = q
+      override def repValue: Rep[U] = v.underlying
+    }
   }
 }
 
@@ -139,10 +158,19 @@ trait QueryOps[T] { self: YYQuery[T] =>
     val liftedResult = query.map(underlyingProjection)(YYShape.ident[S])
     YYQuery(liftedResult)
   }
-  //  def flatMap[S](projection: YYRep[T] => YYQuery[S]): YYQuery[S] = {
-  //    def qp(x: YYRep[T]): Query[Rep[S], S] = projection(x).query
-  //    YYQuery(query.flatMap(qp))
-  //  }
+  def filter(projection: E => YYRep[Boolean]): YYQuery[T] = {
+    def underlyingProjection(x: Rep[T]): Rep[Boolean] = projection({
+      YYValue[T, E](x)
+    }).underlying
+    val liftedResult = query.filter(underlyingProjection)(BooleanRepCanBeQueryCondition)
+    YYQuery(liftedResult)
+  }
+  def flatMap[S](projection: E => YYQuery[S]): YYQuery[S] = {
+    def qp(x: Rep[T]): Query[Rep[S], S] = projection({
+      YYValue[T, E](x)
+    }).query
+    YYQuery(query.flatMap(qp))
+  }
 }
 
 sealed trait YYProjection[T <: Product] extends YYRep[T] with Product

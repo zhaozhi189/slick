@@ -16,32 +16,27 @@ import scala.slick.ast.Select
 import scala.slick.ast.FieldSymbol
 import scala.slick.ast.Ref
 
-object YYMain {
+object YYMain extends YYSlickCake {
 
   def main(args: Array[String]) {
     import scala.slick.driver.H2Driver.simple._
     import Database.threadLocalSession
-    import scala.slick.lifted.Projection
-
-    object TableA extends Table[(Int, Int)]("TABLE_A") {
-      def id = column[Int]("A_ID")
-      def grade = column[Int]("A_GRADE")
-      def * = id ~ grade
-    }
+    import TestTable.TableA
+    import TestTable.YYTableA
+    import TestTable.underlying
 
     Database.forURL("jdbc:h2:mem:test1", driver = "org.h2.Driver") withSession {
       (TableA.ddl).create
 
       TableA.insert((14, 1))
-      TableA.insert((16, 1))
+      TableA.insert((15, 1))
       TableA.insert((18, 2))
       TableA.insert((20, 3))
 
-      val yt = YYTable(TableA)
-      //      val yq = YYQuery(TableA) // deprecated! :)
+      val yt = YYTableA
       val yq = YYQuery(yt)
-      val yId = YYColumn(TableA.id)
       val y15 = YYConstColumn(15)
+      val y16 = YYConstColumn(16)
 
       println(yq.query.list)
 
@@ -49,13 +44,23 @@ object YYMain {
 
       println(yr.query.list)
 
-      val yrMap = yq.map(x => YYValue(x.underlying.asInstanceOf[TableA.type].id))
+      val yrMap = yq.map(x => YYColumn(underlying(x).id))
 
       println(yrMap.query.list)
 
-      val yrTuple = yq.map(x => YYProjection(x.underlying.asInstanceOf[TableA.type].id, x.underlying.asInstanceOf[TableA.type].grade))
+      val yrTuple = yq.map(x => YYProjection(underlying(x).id, underlying(x).grade))
 
       println(yrTuple.query.list)
+
+      val yrFilter1 = yq filter (x => YYColumn(underlying(x).id) === y15) map
+        (x => YYColumn(underlying(x).grade))
+
+      println(yrFilter1.query.list)
+
+      val yrFilter2 = yq filter (x => YYColumn(underlying(x).id) > y16) map
+        (x => YYColumn(underlying(x).grade))
+
+      println(yrFilter2.query.list)
     }
   }
 }
