@@ -96,6 +96,8 @@ trait ColumnOps[T] { self: YYColumn[T] =>
     YYColumn(extendedColumn === e.column)
   def >[T2](e: YYColumn[T2]): YYColumn[Boolean] =
     YYColumn(extendedColumn > e.column)
+  def <[T2](e: YYColumn[T2]): YYColumn[Boolean] =
+    YYColumn(extendedColumn < e.column)
 }
 
 object YYShape {
@@ -151,18 +153,19 @@ object YYQuery {
 }
 
 trait QueryOps[T] { self: YYQuery[T] =>
-  def map[S](projection: E => YYRep[S]): YYQuery[S] = {
+  private def underlyingProjection[S](projection: E => YYRep[S]): Rep[T] => Rep[S] = {
     def underlyingProjection(x: Rep[T]): Rep[S] = projection({
       YYValue[T, E](x)
     }).underlying
-    val liftedResult = query.map(underlyingProjection)(YYShape.ident[S])
+    underlyingProjection _
+  }
+
+  def map[S](projection: E => YYRep[S]): YYQuery[S] = {
+    val liftedResult = query.map(underlyingProjection(projection))(YYShape.ident[S])
     YYQuery(liftedResult)
   }
   def filter(projection: E => YYRep[Boolean]): YYQuery[T] = {
-    def underlyingProjection(x: Rep[T]): Rep[Boolean] = projection({
-      YYValue[T, E](x)
-    }).underlying
-    val liftedResult = query.filter(underlyingProjection)(BooleanRepCanBeQueryCondition)
+    val liftedResult = query.filter(underlyingProjection(projection))(BooleanRepCanBeQueryCondition)
     YYQuery(liftedResult)
   }
   def flatMap[S](projection: E => YYQuery[S]): YYQuery[S] = {
@@ -171,6 +174,9 @@ trait QueryOps[T] { self: YYQuery[T] =>
     }).query
     YYQuery(query.flatMap(qp))
   }
+
+  def length: YYColumn[Int] =
+    YYColumn(query.length)
 }
 
 sealed trait YYProjection[T <: Product] extends YYRep[T] with Product

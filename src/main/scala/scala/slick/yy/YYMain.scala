@@ -1,36 +1,27 @@
 package scala.slick.yy
 
-import scala.slick.ast.Dump
-import scala.slick.ast.StaticType
-import scala.slick.driver.H2Driver
-import scala.slick.ast.TypedType
-import scala.slick.ast.CollectionType
-import scala.slick.ast.CollectionTypeConstructor
-import scala.slick.ast.TableNode
-import scala.slick.ast.Node
-import scala.slick.ast.WithOp
-import scala.slick.ast.TypedNode
-import scala.slick.ast.Type
-import scala.slick.ast.SymbolScope
-import scala.slick.ast.Select
-import scala.slick.ast.FieldSymbol
-import scala.slick.ast.Ref
-
-object YYMain extends YYSlickCake {
+object YYMain {
 
   def main(args: Array[String]) {
-    import scala.slick.driver.H2Driver.simple._
-    import Database.threadLocalSession
-    import TestTable.TableA
-    import TestTable.YYTableA
-    import TestTable.underlying
+    YYTest()
+  }
+}
+
+object YYTest extends YYSlickCake {
+  import scala.slick.driver.H2Driver.simple._
+  import Database.threadLocalSession
+  import TestTable.TableA
+  import TestTable.YYTableA
+  import TestTable.underlying
+
+  def apply() {
 
     Database.forURL("jdbc:h2:mem:test1", driver = "org.h2.Driver") withSession {
       (TableA.ddl).create
 
       TableA.insert((14, 1))
-      TableA.insert((15, 1))
-      TableA.insert((18, 2))
+      TableA.insert((18, 1))
+      TableA.insert((15, 2))
       TableA.insert((20, 3))
 
       val yt = YYTableA
@@ -41,8 +32,6 @@ object YYMain extends YYSlickCake {
       println(yq.query.list)
 
       val yr = yq.map(x => x)
-
-      println(yr.query.list)
 
       val yrMap = yq.map(x => YYColumn(underlying(x).id))
 
@@ -61,6 +50,11 @@ object YYMain extends YYSlickCake {
         (x => YYColumn(underlying(x).grade))
 
       println(yrFilter2.query.list)
+
+      val yrLength = YYQuery(yq.length)
+
+      println(yrLength.query.first)
     }
   }
+
 }
