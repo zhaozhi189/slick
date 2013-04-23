@@ -10,8 +10,8 @@ object SlickBuild extends Build {
   val repoKind = SettingKey[String]("repo-kind", "Maven repository kind (\"snapshots\" or \"releases\")")
 
   val publishedScalaSettings = Seq(
-    scalaVersion := "2.10.0",
-    scalaBinaryVersion <<= scalaVersion,
+    scalaVersion := "2.10.2-SNAPSHOT",
+//    scalaBinaryVersion <<= scalaVersion,
     //crossScalaVersions ++= "2.10.0-M4" :: Nil,
     libraryDependencies <+= scalaVersion("org.scala-lang" % "scala-compiler" % _ % "optional")
   )
@@ -107,7 +107,7 @@ object SlickBuild extends Build {
       unmanagedClasspath in Compile <++= fullClasspath in config("macro"),
       mappings in (Compile, packageSrc) <++= mappings in (config("macro"), packageSrc),
       mappings in (Compile, packageBin) <++= mappings in (config("macro"), packageBin)
-    ))
+    )) dependsOn(yyProject)
   lazy val slickTestkitProject = Project(id = "testkit", base = file("slick-testkit"),
     settings = Project.defaultSettings ++ sharedSettings ++ extTarget("testkit", None) ++ Seq(
       name := "Slick-TestKit",
@@ -145,6 +145,8 @@ object SlickBuild extends Build {
     //concurrentRestrictions += Tags.limitSum(1, Tags.Test, Tags.ForkedTestGroup),
     //concurrentRestrictions in Global += Tags.limit(Tags.Test, 1),
   ) dependsOn(slickProject)
+
+  lazy val yyProject = ProjectRef(file("../mpde"), "yinyang-framework") 
 
   /* Test Configuration for running tests on doc sources */
   lazy val DocTest = config("doctest") extend(Test)

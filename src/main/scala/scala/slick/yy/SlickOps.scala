@@ -82,7 +82,7 @@ object YYTable {
 }
 
 object YYConstColumn {
-  def apply[T: TypedType](v: T): YYColumn[T] = YYColumn(new ConstColumn[T](v))
+  def apply[T: TypedType](v: T): YYColumn[T] = YYColumn(ConstColumn[T](v))
 }
 
 trait ColumnOps[T] { self: YYColumn[T] =>
