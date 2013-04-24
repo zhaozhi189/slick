@@ -6,11 +6,12 @@ trait YYSlickCake {
   type Tuple2[T1, T2] = YYProjection2[T1, T2]
   type Column[T] = YYColumn[T]
   type Table[T] = YYTable[T]
-  type Query[T] = YYQuery[T]
+  type Seq[T] = YYQuery[T]
   type Int = YYColumn[SInt]
   type Long = YYColumn[scala.Long]
   type Double = YYColumn[scala.Double]
   type String = YYColumn[Predef.String]
+  type Boolean = YYColumn[scala.Boolean]
 
   object TestTable {
     import scala.slick.driver.H2Driver.simple

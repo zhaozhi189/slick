@@ -6,8 +6,16 @@ import scala.slick.yy._
 
 class YYTest {
   @Test def simpleTest() {
-    slickYY {
-      1 + 2
+    slickYYDebug {
+      //    slickYY {
+      //      val x = true
+      //      val y =
+      //        if (x)
+      //          4.2
+      //        else
+      //          5.3
+      val y = 5
+      1 < y
     }
   }
 }

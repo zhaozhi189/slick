@@ -24,6 +24,7 @@ import scala.slick.lifted.AbstractTable
 import scala.slick.lifted.NonWrappingQuery
 import scala.slick.lifted.WrappingQuery
 import scala.slick.lifted.CanBeQueryCondition
+import scala.slick.driver.JdbcDriver
 
 trait SlickOps {
 
@@ -31,6 +32,7 @@ trait SlickOps {
 
 trait YYWraper[UT] {
   def underlying: Rep[UT]
+  //  def getValue(implicit session: JdbcDriver.Backend#Session): UT = ???
 }
 
 trait YYRep[T] extends YYWraper[T]
@@ -62,6 +64,7 @@ trait YYColumn[T] extends ColumnOps[T] with YYRep[T] {
   def extendedColumn = new PlainColumnExtensionMethods(column)
   def n = Node(column)
   implicit def om[T2, TR] = OptionMapper2.plain.asInstanceOf[OptionMapper2[T, T, TR, T, T2, TR]]
+  //  override def getValue(implicit session: JdbcDriver.Backend#Session) = JdbcDriver.Implicit.queryToQueryInvoker(Query(column)).first
 }
 
 object YYColumn {
