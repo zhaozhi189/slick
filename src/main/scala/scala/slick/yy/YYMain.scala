@@ -4,6 +4,7 @@ object YYMain {
 
   def main(args: Array[String]) {
     YYTest()
+    Seq(1).map(x => x)
   }
 }
 

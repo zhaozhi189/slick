@@ -49,7 +49,8 @@ object SlickBuild extends Build {
     organization := "com.typesafe.slick",
     resolvers += Resolver.sonatypeRepo("snapshots"),
     scalacOptions ++= List("-deprecation", "-feature"),
-    libraryDependencies += "org.slf4j" % "slf4j-api" % "1.6.4",
+    libraryDependencies ++= Seq("org.slf4j" % "slf4j-api" % "1.6.4",
+      "ch.epfl.lamp" %% "yinyang" % "0.1-SNAPSHOT"),
     logBuffered := false,
     repoKind <<= (version)(v => if(v.trim.endsWith("SNAPSHOT")) "snapshots" else "releases"),
     //publishTo <<= (repoKind)(r => Some(Resolver.file("test", file("c:/temp/repo/"+r)))),
@@ -107,7 +108,7 @@ object SlickBuild extends Build {
       unmanagedClasspath in Compile <++= fullClasspath in config("macro"),
       mappings in (Compile, packageSrc) <++= mappings in (config("macro"), packageSrc),
       mappings in (Compile, packageBin) <++= mappings in (config("macro"), packageBin)
-    )) dependsOn(yyProject)
+    ))
   lazy val slickTestkitProject = Project(id = "testkit", base = file("slick-testkit"),
     settings = Project.defaultSettings ++ sharedSettings ++ extTarget("testkit", None) ++ Seq(
       name := "Slick-TestKit",
@@ -145,8 +146,6 @@ object SlickBuild extends Build {
     //concurrentRestrictions += Tags.limitSum(1, Tags.Test, Tags.ForkedTestGroup),
     //concurrentRestrictions in Global += Tags.limit(Tags.Test, 1),
   ) dependsOn(slickProject)
-
-  lazy val yyProject = ProjectRef(file("../mpde"), "yinyang-framework") 
 
   /* Test Configuration for running tests on doc sources */
   lazy val DocTest = config("doctest") extend(Test)

@@ -31,6 +31,7 @@ trait SlickOps {
 }
 
 trait YYWraper[UT] {
+  type NonRep = UT
   def underlying: Rep[UT]
   //  def getValue(implicit session: JdbcDriver.Backend#Session): UT = ???
 }
@@ -135,7 +136,7 @@ object YYQuery {
     }
   }
 
-  def apply[U](q: Query[Rep[U], U]): YYQuery[U] = {
+  def fromQuery[U](q: Query[Rep[U], U]): YYQuery[U] = {
     val e = YYUtils.valueOfQuery(q)
     create(q, e)
   }
@@ -145,14 +146,19 @@ object YYQuery {
     create(query, v.underlying)
   }
 
-  def apply[U, U1 <: YYTable[U]](v: U1): YYQuery[U] = {
-    val q = Query(v.underlying)(YYShape.ident[U])
-    new YYQuery[U] {
-      type E = U1
-      val query = q
-      override def repValue: Rep[U] = v.underlying
-    }
+  def apiApply[U <: YYRep[_]](v: U): YYQuery[v.NonRep] = {
+    apply(v.asInstanceOf[YYRep[v.NonRep]])
   }
+
+  //
+  //  def apply[U, U1 <: YYTable[U]](v: U1): YYQuery[U] = {
+  //    val q = Query(v.underlying)(YYShape.ident[U])
+  //    new YYQuery[U] {
+  //      type E = U1
+  //      val query = q
+  //      override def repValue: Rep[U] = v.underlying
+  //    }
+  //  }
 }
 
 trait QueryOps[T] { self: YYQuery[T] =>
@@ -163,19 +169,21 @@ trait QueryOps[T] { self: YYQuery[T] =>
     underlyingProjection _
   }
 
-  def map[S](projection: E => YYRep[S]): YYQuery[S] = {
+  //  def map[S](projection: E => YYRep[S]): YYQuery[S] = {
+  // TODO for sure it's a hack. Should be resovled.
+  def map[S](projection: YYRep[T] => YYRep[S]): YYQuery[S] = {
     val liftedResult = query.map(underlyingProjection(projection))(YYShape.ident[S])
-    YYQuery(liftedResult)
+    YYQuery.fromQuery(liftedResult)
   }
   def filter(projection: E => YYRep[Boolean]): YYQuery[T] = {
     val liftedResult = query.filter(underlyingProjection(projection))(BooleanRepCanBeQueryCondition)
-    YYQuery(liftedResult)
+    YYQuery.fromQuery(liftedResult)
   }
   def flatMap[S](projection: E => YYQuery[S]): YYQuery[S] = {
     def qp(x: Rep[T]): Query[Rep[S], S] = projection({
       YYValue[T, E](x)
     }).query
-    YYQuery(query.flatMap(qp))
+    YYQuery.fromQuery(query.flatMap(qp))
   }
 
   def length: YYColumn[Int] =

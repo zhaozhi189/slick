@@ -13,12 +13,14 @@ package object yy {
       new YYTransformer[c.type, T](c, "scala.slick.yy.SlickYinYang",
         shallow = false,
         debug = false,
-        rep = false)(block)
+        rep = false,
+        slickHack = true)(block)
 
     def slickYYDebug[T](c: Context)(block: c.Expr[T]): c.Expr[T] =
       new YYTransformer[c.type, T](c, "scala.slick.yy.SlickYinYang",
         shallow = false,
         debug = true,
-        rep = false)(block)
+        rep = false,
+        slickHack = true)(block)
   }
 }
