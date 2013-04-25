@@ -25,6 +25,7 @@ import scala.slick.lifted.NonWrappingQuery
 import scala.slick.lifted.WrappingQuery
 import scala.slick.lifted.CanBeQueryCondition
 import scala.slick.driver.JdbcDriver
+import scala.slick.driver.H2Driver
 
 trait SlickOps {
 
@@ -43,6 +44,7 @@ object YYValue {
     rep match {
       case c: Column[_] => YYColumn(c)
       case t: AbstractTable[_] => YYTable(t)
+      case tup: Projection2[_, _] => YYProjection(tup)
     }
   }
 
@@ -80,8 +82,27 @@ trait YYTable[T] extends YYRep[T] {
 }
 
 object YYTable {
-  def apply[T](t: AbstractTable[T]): YYTable[T] = new YYTable[T] {
-    val table = t
+  // Another hack!!!
+  //  val maps = new scala.collection.mutable.HashMap[String, YYTable[_]]
+  val maps = new scala.collection.mutable.HashMap[AbstractTable[_], YYTable[_]]
+
+  def apply[T](t: AbstractTable[T]): YYTable[T] = {
+    //    println(s"looking for $t")
+    //    val yyTable = maps.getOrElseUpdate(t.toString, {
+    val yyTable = maps.getOrElseUpdate(t, {
+      //      println("not found")
+      new YYTable[T] {
+        val table = t
+      }
+    }).asInstanceOf[YYTable[T]]
+    //    println(yyTable)
+    yyTable
+  }
+
+  def add[T](t: AbstractTable[T], y: YYTable[T]) {
+    //    println(s"$y is inserted for $t")
+    //    maps.put(t.toString, y)
+    maps.put(t, y)
   }
 }
 
@@ -120,6 +141,12 @@ trait YYQuery[U] extends QueryOps[U] with YYRep[Seq[U]] {
   object BooleanRepCanBeQueryCondition extends CanBeQueryCondition[Rep[Boolean]] {
     def apply(value: Rep[Boolean]) = value.asInstanceOf[Column[Boolean]]
   }
+
+  // FIXME
+  implicit def session = YYUtils.session
+
+  def first: U = JdbcDriver.Implicit.queryToQueryInvoker(query).first
+  def toSeq: Seq[U] = JdbcDriver.Implicit.queryToQueryInvoker(query).list.toSeq
 }
 
 object YYQuery {
@@ -163,19 +190,25 @@ object YYQuery {
 
 trait QueryOps[T] { self: YYQuery[T] =>
   private def underlyingProjection[S](projection: E => YYRep[S]): Rep[T] => Rep[S] = {
+    // TODO for sure it's a hack. Should be resovled.
+    //  private def underlyingProjection[S](projection: YYRep[T] => YYRep[S]): Rep[T] => Rep[S] = {
     def underlyingProjection(x: Rep[T]): Rep[S] = projection({
       YYValue[T, E](x)
+      //            YYValue[T, YYRep[T]](x)
+      //      YYValue.applyUntyped[T](x)
     }).underlying
     underlyingProjection _
   }
 
-  //  def map[S](projection: E => YYRep[S]): YYQuery[S] = {
-  // TODO for sure it's a hack. Should be resovled.
-  def map[S](projection: YYRep[T] => YYRep[S]): YYQuery[S] = {
+  def map[S](projection: E => YYRep[S]): YYQuery[S] = {
+    // TODO for sure it's a hack. Should be resovled.
+    //  def map[S](projection: YYRep[T] => YYRep[S]): YYQuery[S] = {
     val liftedResult = query.map(underlyingProjection(projection))(YYShape.ident[S])
     YYQuery.fromQuery(liftedResult)
   }
   def filter(projection: E => YYRep[Boolean]): YYQuery[T] = {
+    // TODO for sure it's a hack. Should be resovled.
+    //  def filter(projection: YYRep[T] => YYRep[Boolean]): YYQuery[T] = {
     val liftedResult = query.filter(underlyingProjection(projection))(BooleanRepCanBeQueryCondition)
     YYQuery.fromQuery(liftedResult)
   }
@@ -190,30 +223,50 @@ trait QueryOps[T] { self: YYQuery[T] =>
     YYColumn(query.length)
 }
 
-sealed trait YYProjection[T <: Product] extends YYRep[T] with Product
+sealed trait YYProjection[T <: Product] extends YYRep[T] with Product {
+  def canEqual(that: Any): Boolean = that.isInstanceOf[YYProjection[_]]
+}
 
 object YYProjection {
   def apply[T1, T2](tuple2: Projection2[T1, T2]): YYProjection2[T1, T2] = {
-    new YYProjection2(YYColumn(tuple2._1), YYColumn(tuple2._2))
+    new YYProjection2[T1, T2] {
+      def _1 = YYColumn(tuple2._1)
+      def _2 = YYColumn(tuple2._2)
+      override def underlying = _1.underlying ~ _2.underlying
+    }
   }
 
   def apply[T1, T2](_1: Column[T1], _2: Column[T2]): YYProjection2[T1, T2] = {
     apply(_1 ~ _2)
   }
+
+  def fromYY[T1, T2](_1: YYColumn[T1], _2: YYColumn[T2]): YYProjection2[T1, T2] = {
+    apply(_1.underlying ~ _2.underlying)
+  }
 }
 
-final class YYProjection2[T1, T2](
-  override val _1: YYColumn[T1],
-  override val _2: YYColumn[T2])
-  extends Tuple2(_1, _2) with YYProjection[(T1, T2)] {
-  override def underlying = _1.underlying ~ _2.underlying
+//final class YYProjection2[T1, T2](
+//  override val _1: YYColumn[T1],
+//  override val _2: YYColumn[T2])
+//  extends Tuple2(_1, _2) with YYProjection[(T1, T2)] {
+//  override def underlying = _1.underlying ~ _2.underlying
+//}
+trait YYProjection2[T1, T2] extends Product2[YYColumn[T1], YYColumn[T2]] with YYProjection[(T1, T2)] {
+  //  override def underlying = _1.underlying ~ _2.underlying
+  override def toString = "YY(" + _1 + ", " + _2 + ")"
 }
 
 object YYUtils {
+
   def valueOfQuery[U, T <: Rep[U]](query: Query[T, U]): T = query match {
     case nwq: NonWrappingQuery[_, _] => nwq.unpackable.value
     case wq: WrappingQuery[_, _] => wq.base.value
   }
+
+  // FIXME hack!
+  val conn = H2Driver.simple.Database.forURL("jdbc:h2:mem:test1", driver = "org.h2.Driver")
+  val session = conn.createSession
+  def provideSession: JdbcDriver.Backend#Session = session
 }
 
 object YYDebug {
