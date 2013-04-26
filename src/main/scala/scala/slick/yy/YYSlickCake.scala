@@ -14,10 +14,19 @@ trait YYSlickCake {
   type Double = YYColumn[scala.Double]
   type String = YYColumn[Predef.String]
   type Boolean = YYColumn[scala.Boolean]
+  type TableRow = scala.slick.yy.YYTableRow
+
+  type YYTableRow = Table[TableRow]
 
   implicit def fixClosureContraVariance[T, U <: YYRep[T], S](x: U => S) =
     //  implicit def fixClosureContraVarianceColumn[T, S](x: YYColumn[T] => S) =
     x.asInstanceOf[YYRep[T] => S]
+
+  //  implicit def fixHack(x: YYTableRow) =
+  //    x.asInstanceOf[YYRep[TableRow]]
+
+  //  implicit def fixClosureContraVarianceTableRow[S](x: YYTableRow => S) =
+  //    x.asInstanceOf[YYRep[TableRow] => S]
 
   //  implicit def fixClosureContraVarianceTable[T, S](x: YYTable[T] => S) =
   //    x.asInstanceOf[YYRep[T] => S]
@@ -40,7 +49,8 @@ trait YYSlickCake {
   def __equals[T](t: Column[T], e: Column[T]) = t === e
 
   object Table {
-    def test(): Table[(SInt, SInt)] = TestTable.YYTableA
+    //    def test() = TestTable.YYTableA
+    def test(): Table[TableRow] = TestTable.YYTableA.asInstanceOf[Table[TableRow]]
   }
 
   object Tuple2 {
@@ -50,20 +60,28 @@ trait YYSlickCake {
   object TestTable {
     import scala.slick.driver.H2Driver.simple
     import scala.slick.driver.H2Driver.Implicit._
-    class TableA extends simple.Table[(SInt, SInt)]("TABLE_A") {
+    //    class TableA extends simple.Table[(SInt, SInt)]("TABLE_A") {
+    class TableA extends simple.Table[YYTableARow]("TABLE_A") {
       def id = column[SInt]("A_ID")
       def grade = column[SInt]("A_GRADE")
-      def * = id ~ grade
+      def * = id ~ grade <> (YYTableARow, YYTableARow.unapply _)
     }
     object TableA extends TableA
 
-    class YYTableA extends Table[(SInt, SInt)] with YYProjection2[SInt, SInt] {
+    class YYTableARow(override val _1: SInt, override val _2: SInt) extends (SInt, SInt)(_1, _2) with TableRow
+    object YYTableARow extends ((SInt, SInt) => YYTableARow) {
+      def apply(v1: SInt, v2: SInt): YYTableARow = new YYTableARow(v1, v2)
+      def unapply(param: YYTableARow): Option[YYTableARow] = Some(param)
+    }
+
+    //    class YYTableA extends Table[(SInt, SInt)] with YYProjection2[SInt, SInt] {
+    class YYTableA extends Table[YYTableARow] {
       val table = TableA
 
       def id = YYColumn(table.id)
       def grade = YYColumn(table.grade)
-      def _1 = id
-      def _2 = grade
+      //      def _1 = id
+      //      def _2 = grade
       override def toString = "YYTableA"
     }
 

@@ -1,5 +1,6 @@
 package scala.slick.test.jdbc
 
+import scala.language.implicitConversions
 import org.junit.Test
 import org.junit.Assert._
 import scala.slick.yy._
@@ -73,15 +74,53 @@ class YYTest {
     assertEquals("Query filter of tuple2 + Column >", 1, r5.length)
   }
 
-  /*@Test def testTableTest() {
-    //    val ta = YYTableA
+  @Test def testTableTest() {
+    initTable()
+    //    val q2: generated$scalaslickyySlickYinYang13.this.Query[(Int, Int)] = q.map[(Int, Int)](generated$scalaslickyySlickYinYang13.this.fixClosureContraVariance[(Int, Int), generated$scalaslickyySlickYinYang13.this.Tuple2[Int,Int], generated$scalaslickyySlickYinYang13.this.Tuple2[Int,Int]](((x: generated$scalaslickyySlickYinYang13.this.Tuple2[Int,Int]) => x)));
+    val r1 = slickYY {
+      val tbl = Table.test()
+      val q = Query.ofTable(tbl)
+      q.toSeq
+    }
+    assertEquals("Query of Table", 4, r1.length)
+    val r2 = slickYY {
+      val tbl = Table.test()
+      val q = Query.ofTable(tbl)
+      val q2 = q.map(x => x)
+      q2.toSeq
+    }
+    assertEquals("Query identity map of Table", 4, r2.length)
     slickYYDebug {
       val tbl = Table.test()
       val q = Query.ofTable(tbl)
       //      val q2 = q.map((x: Table[(Int, Int)]) => x)
       val q2 = q.map(x => x)
+      println(q.toSeq)
       println(q2.toSeq)
     }
   }
-  */
+
+  def initTable() {
+    import scala.slick.driver.H2Driver.simple._
+    object Test extends YYSlickCake {
+      import TestTable.TableA
+      import TestTable.YYTableA
+      import TestTable.YYTableARow
+      import TestTable.underlying
+      import Database.threadLocalSession
+
+      implicit def convertTuple2ToTableARow(tup2: (scala.Int, scala.Int)): YYTableARow =
+        YYTableARow(tup2._1, tup2._2)
+
+      Database.forURL("jdbc:h2:mem:test1", driver = "org.h2.Driver") withSession {
+        (TableA.ddl).create
+
+        TableA.insert((14, 1))
+        TableA.insert((18, 1))
+        TableA.insert((15, 2))
+        TableA.insert((20, 3))
+      }
+    }
+    Test
+  }
 }

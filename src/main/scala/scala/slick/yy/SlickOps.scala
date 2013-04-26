@@ -76,6 +76,8 @@ object YYColumn {
   }
 }
 
+trait YYTableRow
+
 trait YYTable[T] extends YYRep[T] {
   val table: AbstractTable[T]
   override def underlying = table
@@ -95,7 +97,6 @@ object YYTable {
         val table = t
       }
     }).asInstanceOf[YYTable[T]]
-    //    println(yyTable)
     yyTable
   }
 
@@ -165,6 +166,7 @@ object YYQuery {
 
   def fromQuery[U](q: Query[Rep[U], U]): YYQuery[U] = {
     val e = YYUtils.valueOfQuery(q)
+//    println(s"from query invoked $e")
     create(q, e)
   }
 
@@ -189,26 +191,29 @@ object YYQuery {
 }
 
 trait QueryOps[T] { self: YYQuery[T] =>
-  private def underlyingProjection[S](projection: E => YYRep[S]): Rep[T] => Rep[S] = {
-    // TODO for sure it's a hack. Should be resovled.
-    //  private def underlyingProjection[S](projection: YYRep[T] => YYRep[S]): Rep[T] => Rep[S] = {
+    private def underlyingProjection[S](projection: E => YYRep[S]): Rep[T] => Rep[S] = {
+  // TODO for sure it's a hack. Should be resovled.
+//  private def underlyingProjection[S](projection: YYRep[T] => YYRep[S]): Rep[T] => Rep[S] = {
     def underlyingProjection(x: Rep[T]): Rep[S] = projection({
-      YYValue[T, E](x)
+            YYValue[T, E](x)
       //            YYValue[T, YYRep[T]](x)
-      //      YYValue.applyUntyped[T](x)
+//      YYValue.applyUntyped[T](x)
+//      v
     }).underlying
-    underlyingProjection _
+
+    val res = underlyingProjection _
+    res
   }
 
-  def map[S](projection: E => YYRep[S]): YYQuery[S] = {
-    // TODO for sure it's a hack. Should be resovled.
-    //  def map[S](projection: YYRep[T] => YYRep[S]): YYQuery[S] = {
+    def map[S](projection: E => YYRep[S]): YYQuery[S] = {
+  // TODO for sure it's a hack. Should be resovled.
+//  def map[S](projection: YYRep[T] => YYRep[S]): YYQuery[S] = {
     val liftedResult = query.map(underlyingProjection(projection))(YYShape.ident[S])
     YYQuery.fromQuery(liftedResult)
   }
-  def filter(projection: E => YYRep[Boolean]): YYQuery[T] = {
-    // TODO for sure it's a hack. Should be resovled.
-    //  def filter(projection: YYRep[T] => YYRep[Boolean]): YYQuery[T] = {
+    def filter(projection: E => YYRep[Boolean]): YYQuery[T] = {
+  // TODO for sure it's a hack. Should be resovled.
+//  def filter(projection: YYRep[T] => YYRep[Boolean]): YYQuery[T] = {
     val liftedResult = query.filter(underlyingProjection(projection))(BooleanRepCanBeQueryCondition)
     YYQuery.fromQuery(liftedResult)
   }

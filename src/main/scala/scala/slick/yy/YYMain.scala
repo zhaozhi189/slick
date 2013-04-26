@@ -1,5 +1,7 @@
 package scala.slick.yy
 
+import scala.language.implicitConversions
+
 object YYMain {
 
   def main(args: Array[String]) {
@@ -13,7 +15,11 @@ object YYTest extends YYSlickCake {
   import Database.threadLocalSession
   import TestTable.TableA
   import TestTable.YYTableA
+  import TestTable.YYTableARow
   import TestTable.underlying
+
+  implicit def convertTuple2ToTableARow(tup2: (scala.Int, scala.Int)): YYTableARow =
+    YYTableARow(tup2._1, tup2._2)
 
   def apply() {
 
@@ -34,6 +40,8 @@ object YYTest extends YYSlickCake {
       println(yq.toSeq)
 
       val yr = yq.map(x => x)
+      
+      println(yr.toSeq)
 
       val yrMap = yq.map(x => YYColumn(underlying(x).id))
 

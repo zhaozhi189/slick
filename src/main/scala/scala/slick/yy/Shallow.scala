@@ -19,6 +19,9 @@ object Shallow {
   }
 
   object Table {
-    def test(): Table[(Int, Int)] = ???
+    //    def test(): Table[(Int, Int)] = ???
+    def test(): Table[TableRow] = ???
   }
+
+  type TableRow = YYSlickCake#TableRow
 }
