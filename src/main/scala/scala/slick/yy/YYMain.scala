@@ -15,7 +15,6 @@ object YYTest extends YYSlickCake {
   import Database.threadLocalSession
   import TestTable.TableA
   import TestTable.YYTableA
-  import TestTable.YYTableARow
   import TestTable.underlying
   import TestTable.convertTuple2ToTableARow
 

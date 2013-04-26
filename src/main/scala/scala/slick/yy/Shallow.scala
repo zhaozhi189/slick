@@ -19,7 +19,6 @@ object Shallow {
   }
 
   object Table {
-    //    def test(): Table[(Int, Int)] = ???
     def test(): Table[TableRow] = ???
     def test2(): Table[TableARow] = ???
   }

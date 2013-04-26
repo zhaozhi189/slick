@@ -94,7 +94,7 @@ class YYTest {
     val r3 = slickYY {
       val tbl = Table.test2()
       val q = Query.ofTable(tbl)
-      val q2 = q.map(x => x._1)
+      val q2 = q.map(x => x.id)
       q2.toSeq
     }
     assertEquals("Query map _1 of Table", List(14, 18, 15, 20), r3.toList)
@@ -102,19 +102,20 @@ class YYTest {
     val r4 = slickYY {
       val tbl = Table.test2()
       val q = Query.ofTable(tbl)
-      val q2 = q.map(x => x._1)
+      val q2 = q.map(x => x.id)
       val q3 = q2.filter(x => x < 16)
-      q3.toSeq
+      val q4 = q3.filter(x => x > 14)
+      q4.toSeq
     }
-    assertEquals("Query filter map _1 of Table", List(14, 15), r4.toList)
+    assertEquals("Query filter map _1 of Table", List(15), r4.toList)
 
     val r5 = slickYY {
       val tbl = Table.test2()
       val q = Query.ofTable(tbl)
-      val q2 = q.filter(x => x._1 == 14)
+      val q2 = q.filter(x => x.id == 14)
       q2.toSeq
     }
-    assertEquals("Query filter of Table", List((14, 1)), r5.toList)
+    assertEquals("Query filter of Table", List(YYTableARow(14, 1)), r5.toList)
   }
 
   def initTable() {
@@ -122,7 +123,6 @@ class YYTest {
     object Test extends YYSlickCake {
       import TestTable.TableA
       import TestTable.YYTableA
-      import TestTable.YYTableARow
       import TestTable.underlying
       import TestTable.convertTuple2ToTableARow
       import Database.threadLocalSession
