@@ -1,6 +1,7 @@
 package scala.slick.yy
 
 import scala.{ Int => SInt }
+import scala.language.implicitConversions
 
 trait YYSlickCake {
   type Tuple2[T1, T2] = YYProjection2[T1, T2]
@@ -48,48 +49,63 @@ trait YYSlickCake {
 
   def __equals[T](t: Column[T], e: Column[T]) = t === e
 
-  object Table {
-    //    def test() = TestTable.YYTableA
-    def test(): Table[TableRow] = TestTable.YYTableA.asInstanceOf[Table[TableRow]]
-  }
-
   object Tuple2 {
     def apply[T1, T2](_1: Column[T1], _2: Column[T2]) = YYProjection.fromYY(_1, _2)
   }
 
-  object TestTable {
-    import scala.slick.driver.H2Driver.simple
-    import scala.slick.driver.H2Driver.Implicit._
-    //    class TableA extends simple.Table[(SInt, SInt)]("TABLE_A") {
-    class TableA extends simple.Table[YYTableARow]("TABLE_A") {
-      def id = column[SInt]("A_ID")
-      def grade = column[SInt]("A_GRADE")
-      def * = id ~ grade <> (YYTableARow, YYTableARow.unapply _)
-    }
-    object TableA extends TableA
+  // testing stuffs
 
-    class YYTableARow(override val _1: SInt, override val _2: SInt) extends (SInt, SInt)(_1, _2) with TableRow
-    object YYTableARow extends ((SInt, SInt) => YYTableARow) {
-      def apply(v1: SInt, v2: SInt): YYTableARow = new YYTableARow(v1, v2)
-      def unapply(param: YYTableARow): Option[YYTableARow] = Some(param)
-    }
+  type TableARow = scala.slick.yy.YYTableARow
+  type YYTableARow = Table[TableARow] // w/o it: "type YYTableARow is not a member of CAKE"
 
-    //    class YYTableA extends Table[(SInt, SInt)] with YYProjection2[SInt, SInt] {
-    class YYTableA extends Table[YYTableARow] {
-      val table = TableA
+  implicit def convertYYTableARow(t: YYTableARow): TestTable.TableA =
+    t.underlying.asInstanceOf[TestTable.TableA]
 
-      def id = YYColumn(table.id)
-      def grade = YYColumn(table.grade)
-      //      def _1 = id
-      //      def _2 = grade
-      override def toString = "YYTableA"
-    }
-
-    object YYTableA extends YYTableA
-
-    YYTable.add(TableA, YYTableA)
-
-    def underlying[E](x: YYRep[E]): TableA.type = x.underlying.asInstanceOf[TableA.type]
+  object Table {
+    //    def test() = TestTable.YYTableA
+    def test(): Table[TableRow] = TestTable.YYTableA.asInstanceOf[Table[TableRow]]
+    def test2(): Table[TableARow] = TestTable.YYTableA
   }
+
 }
 
+object TestTable {
+  import scala.slick.driver.H2Driver.simple
+  import scala.slick.driver.H2Driver.Implicit._
+  //    class TableA extends simple.Table[(SInt, SInt)]("TABLE_A") {
+  class TableA extends simple.Table[YYTableARow]("TABLE_A") {
+    def id = column[SInt]("A_ID")
+    def grade = column[SInt]("A_GRADE")
+    def _1 = YYColumn(id)
+    def * = id ~ grade <> (YYTableARow, YYTableARow.unapply _)
+  }
+  object TableA extends TableA
+
+  implicit def convertTuple2ToTableARow(tup2: (scala.Int, scala.Int)): YYTableARow =
+    YYTableARow(tup2._1, tup2._2)
+
+  //    class YYTableARow(val id: SInt, val grade: SInt) extends (SInt, SInt)(id, grade) with TableRow
+  object YYTableARow extends ((SInt, SInt) => YYTableARow) {
+    def apply(v1: SInt, v2: SInt): YYTableARow = new YYTableARow(v1, v2)
+    def unapply(param: YYTableARow): Option[YYTableARow] = Some(param)
+  }
+
+  //    class YYTableA extends Table[(SInt, SInt)] with YYProjection2[SInt, SInt] {
+  class YYTableA extends YYTable[YYTableARow] {
+    val table = TableA
+
+    def id = YYColumn(table.id)
+    def grade = YYColumn(table.grade)
+    def _1 = id
+    def _2 = grade
+    override def toString = "YYTableA"
+  }
+
+  object YYTableA extends YYTableA
+
+  YYTable.add(TableA, YYTableA)
+
+  def underlying[E](x: YYRep[E]): TableA.type = x.underlying.asInstanceOf[TableA.type]
+}
+
+class YYTableARow(override val _1: SInt, override val _2: SInt) extends (SInt, SInt)(_1, _2) with YYTableRow

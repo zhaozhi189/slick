@@ -90,14 +90,31 @@ class YYTest {
       q2.toSeq
     }
     assertEquals("Query identity map of Table", 4, r2.length)
-    slickYYDebug {
-      val tbl = Table.test()
+
+    val r3 = slickYY {
+      val tbl = Table.test2()
       val q = Query.ofTable(tbl)
-      //      val q2 = q.map((x: Table[(Int, Int)]) => x)
-      val q2 = q.map(x => x)
-      println(q.toSeq)
-      println(q2.toSeq)
+      val q2 = q.map(x => x._1)
+      q2.toSeq
     }
+    assertEquals("Query map _1 of Table", List(14, 18, 15, 20), r3.toList)
+
+    val r4 = slickYY {
+      val tbl = Table.test2()
+      val q = Query.ofTable(tbl)
+      val q2 = q.map(x => x._1)
+      val q3 = q2.filter(x => x < 16)
+      q3.toSeq
+    }
+    assertEquals("Query filter map _1 of Table", List(14, 15), r4.toList)
+
+    val r5 = slickYY {
+      val tbl = Table.test2()
+      val q = Query.ofTable(tbl)
+      val q2 = q.filter(x => x._1 == 14)
+      q2.toSeq
+    }
+    assertEquals("Query filter of Table", List((14, 1)), r5.toList)
   }
 
   def initTable() {
@@ -107,10 +124,8 @@ class YYTest {
       import TestTable.YYTableA
       import TestTable.YYTableARow
       import TestTable.underlying
+      import TestTable.convertTuple2ToTableARow
       import Database.threadLocalSession
-
-      implicit def convertTuple2ToTableARow(tup2: (scala.Int, scala.Int)): YYTableARow =
-        YYTableARow(tup2._1, tup2._2)
 
       Database.forURL("jdbc:h2:mem:test1", driver = "org.h2.Driver") withSession {
         (TableA.ddl).create

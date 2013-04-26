@@ -17,9 +17,7 @@ object YYTest extends YYSlickCake {
   import TestTable.YYTableA
   import TestTable.YYTableARow
   import TestTable.underlying
-
-  implicit def convertTuple2ToTableARow(tup2: (scala.Int, scala.Int)): YYTableARow =
-    YYTableARow(tup2._1, tup2._2)
+  import TestTable.convertTuple2ToTableARow
 
   def apply() {
 
@@ -36,38 +34,32 @@ object YYTest extends YYSlickCake {
       val y15 = YYConstColumn(15)
       val y16 = YYConstColumn(16)
 
-      //      println(yq.query.list)
       println(yq.toSeq)
 
       val yr = yq.map(x => x)
-      
+
       println(yr.toSeq)
 
       val yrMap = yq.map(x => YYColumn(underlying(x).id))
 
-      //      println(yrMap.query.list)
       println(yrMap.toSeq)
 
       val yrTuple = yq.map(x => YYProjection(underlying(x).id, underlying(x).grade))
 
-      //      println(yrTuple.query.list)
       println(yrTuple.toSeq)
 
       val yrFilter1 = yq filter (x => YYColumn(underlying(x).id) === y15) map
         (x => YYColumn(underlying(x).grade))
 
-      //      println(yrFilter1.query.list)
       println(yrFilter1.toSeq)
 
       val yrFilter2 = yq filter (x => YYColumn(underlying(x).id) > y16) map
         (x => YYColumn(underlying(x).grade))
 
-      //      println(yrFilter2.query.list)
       println(yrFilter2.toSeq)
 
       val yrLength = YYQuery(yq.length)
 
-      //      println(yrLength.query.first)
       println(yrLength.first)
 
       val yrSingleColumn = YYQuery(y15)
