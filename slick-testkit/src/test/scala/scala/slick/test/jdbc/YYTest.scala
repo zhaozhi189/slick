@@ -74,6 +74,10 @@ class YYTest {
       Query(x).map(x => x._2).filter(x => x > 1).toSeq
     }
     assertEquals("Query filter of tuple2 + Column >", 1, r5.length)
+    val r6 = slickYY {
+      Query((1, 2)).map(x => (x._2, if (x._2 == 2) false else true)).toSeq
+    }
+    assertEquals("Query map of tuple 2 + Column > + if true", (2, false), r6.head)
   }
 
   @Test def testTableTest() {

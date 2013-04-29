@@ -37,13 +37,7 @@ trait YYSlickCake {
   type TableARow = scala.slick.yy.YYTableARow
   type YYTableARow = Table[TableARow] // w/o it: "type YYTableARow is not a member of CAKE"
 
-  case class TableARowWrapper(underlying: TestTable.TableA) {
-    def id = YYColumn(underlying.id)
-    def grade = YYColumn(underlying.grade)
-  }
-
-  implicit def convertYYTableARow(t: YYTableARow): TableARowWrapper =
-    TableARowWrapper(t.underlying.asInstanceOf[TestTable.TableA])
+  implicit def convertYYTableARow(t: Table[TableARow]) = new TestTable.YYTableA(t.underlying.asInstanceOf[TestTable.TableA])
 
   object Table {
     def test(): Table[TableRow] = TestTable.YYTableA.asInstanceOf[Table[TableRow]]
@@ -66,15 +60,14 @@ object TestTable {
   implicit def convertTuple2ToTableARow(tup2: (scala.Int, scala.Int)): YYTableARow =
     YYTableARow(tup2._1, tup2._2)
 
-  class YYTableA extends YYTable[YYTableARow] {
-    val table = TableA
+  class YYTableA(val table: TableA) extends YYTable[YYTableARow] {
 
     def id = YYColumn(table.id)
     def grade = YYColumn(table.grade)
     override def toString = "YYTableA"
   }
 
-  object YYTableA extends YYTableA
+  object YYTableA extends YYTableA(TableA)
 
   def underlying[E](x: YYRep[E]): TableA.type = x.underlying.asInstanceOf[TableA.type]
 }
