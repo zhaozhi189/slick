@@ -78,6 +78,10 @@ class YYTest {
       Query((1, 2)).map(x => (x._2, if (x._2 == 2) false else true)).toSeq
     }
     assertEquals("Query map of tuple 2 + Column > + if true", (2, false), r6.head)
+    val r7 = slickYY {
+      Query((1, 2)).map(x => (x._2, if (x._2 == 1) false else true)).toSeq
+    }
+    assertEquals("Query map of tuple 2 + Column > + if false", (2, true), r7.head)
   }
 
   @Test def testTableTest() {
@@ -116,6 +120,20 @@ class YYTest {
       q.toSeq
     }
     assertEquals("Query filter of Table", List(YYTableARow(14, 1)), r5.toList)
+
+    val r6 = slickYY {
+      val tbl = Table.test2()
+      val q = Query ofTable tbl map (x => (x.id, x.grade))
+      q.toSeq
+    }
+    assertEquals("Query map (_1, _2) of Table", List((14, 1), (18, 1), (15, 2), (20, 3)), r6.toList)
+
+    val r7 = slickYY {
+      val tbl = Table.test2()
+      val q = Query ofTable tbl map (x => (x.id, if (x.grade == 1) "One" else "More"))
+      q.toSeq
+    }
+    assertEquals("Query map (_1, _2) of Table + if", List((14, "One"), (18, "One"), (15, "More"), (20, "More")), r7.toList)
 
     YYUtils.closeSession
   }

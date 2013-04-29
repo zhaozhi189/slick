@@ -2,6 +2,8 @@ package scala.slick.yy
 
 import scala.{ Int => SInt }
 import scala.language.implicitConversions
+import scala.slick.lifted.Case
+import scala.slick.ast.BaseTypedType
 
 trait YYSlickCake {
   type Tuple2[T1, T2] = YYProjection2[T1, T2]
@@ -24,7 +26,12 @@ trait YYSlickCake {
     def ofTable[T](t: YYTable[T]): YYQuery[T] = YYQuery.apply(t)
   }
 
-  def __ifThenElse[T](c: => Boolean, t: T, e: T) = t // TODO this is only for testing. Should be fixed
+  def __ifThenElse[T: BaseTypedType](c: => Boolean, t: Column[T], e: Column[T]): Column[T] = {
+    val condition = Case.If(c.underlying)
+    val _then = condition.Then[T](t.underlying)
+    val _else = _then.Else(e.underlying)
+    YYColumn(_else)
+  }
 
   def __equals[T](t: Column[T], e: Column[T]) = t === e
 
