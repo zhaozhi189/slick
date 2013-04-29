@@ -122,7 +122,7 @@ trait YYQuery[U] extends QueryOps[U] with YYRep[Seq[U]] {
   }
 
   // FIXME
-  implicit def session = YYUtils.session
+  implicit def session = YYUtils.provideSession
 
   def first: U = JdbcDriver.Implicit.queryToQueryInvoker(query).first
   def toSeq: Seq[U] = JdbcDriver.Implicit.queryToQueryInvoker(query).list.toSeq
@@ -222,8 +222,12 @@ object YYUtils {
 
   // FIXME hack!
   val conn = H2Driver.simple.Database.forURL("jdbc:h2:mem:test1", driver = "org.h2.Driver")
-  val session = conn.createSession
+  private var session = conn.createSession
   def provideSession: JdbcDriver.Backend#Session = session
+  def closeSession {
+    session.close
+    session = conn.createSession
+  }
 }
 
 object YYDebug {

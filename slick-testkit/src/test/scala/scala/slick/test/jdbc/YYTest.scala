@@ -59,7 +59,9 @@ class YYTest {
     assertEquals("Query map _2 of tuple", 2.5, r2, 0.1)
     val r3 = slickYY {
       val x = (1, 2)
-      Query(x).map(x => x._2).filter(x => x == 1).toSeq
+      val q = Query(x).map(x => x._2)
+      val q2 = q.filter(x => x == 1)
+      q2.toSeq
     }
     assertEquals("Query filter of tuple2 + Column ==", 0, r3.length)
     val r4 = slickYY {
@@ -76,7 +78,6 @@ class YYTest {
 
   @Test def testTableTest() {
     initTable()
-    //    val q2: generated$scalaslickyySlickYinYang13.this.Query[(Int, Int)] = q.map[(Int, Int)](generated$scalaslickyySlickYinYang13.this.fixClosureContraVariance[(Int, Int), generated$scalaslickyySlickYinYang13.this.Tuple2[Int,Int], generated$scalaslickyySlickYinYang13.this.Tuple2[Int,Int]](((x: generated$scalaslickyySlickYinYang13.this.Tuple2[Int,Int]) => x)));
     val r1 = slickYY {
       val tbl = Table.test()
       val q = Query.ofTable(tbl)
@@ -85,37 +86,34 @@ class YYTest {
     assertEquals("Query of Table", 4, r1.length)
     val r2 = slickYY {
       val tbl = Table.test()
-      val q = Query.ofTable(tbl)
-      val q2 = q.map(x => x)
-      q2.toSeq
+      val q = Query.ofTable(tbl).map(x => x)
+      q.toSeq
     }
     assertEquals("Query identity map of Table", 4, r2.length)
 
     val r3 = slickYY {
       val tbl = Table.test2()
-      val q = Query.ofTable(tbl)
-      val q2 = q.map(x => x.id)
-      q2.toSeq
+      val q = Query.ofTable(tbl) map (x => x.id)
+      q.toSeq
     }
     assertEquals("Query map _1 of Table", List(14, 18, 15, 20), r3.toList)
 
     val r4 = slickYY {
       val tbl = Table.test2()
-      val q = Query.ofTable(tbl)
-      val q2 = q.map(x => x.id)
-      val q3 = q2.filter(x => x < 16)
-      val q4 = q3.filter(x => x > 14)
-      q4.toSeq
+      val q = Query.ofTable(tbl) map (x => x.id) filter (x => x < 16) filter
+        (x => x > 14)
+      q.toSeq
     }
     assertEquals("Query filter map _1 of Table", List(15), r4.toList)
 
     val r5 = slickYY {
       val tbl = Table.test2()
-      val q = Query.ofTable(tbl)
-      val q2 = q.filter(x => x.id == 14)
-      q2.toSeq
+      val q = Query ofTable tbl filter (x => x.id == 14)
+      q.toSeq
     }
     assertEquals("Query filter of Table", List(YYTableARow(14, 1)), r5.toList)
+
+    YYUtils.closeSession
   }
 
   def initTable() {
@@ -125,16 +123,15 @@ class YYTest {
       import TestTable.YYTableA
       import TestTable.underlying
       import TestTable.convertTuple2ToTableARow
-      import Database.threadLocalSession
 
-      Database.forURL("jdbc:h2:mem:test1", driver = "org.h2.Driver") withSession {
-        (TableA.ddl).create
+      implicit val session = YYUtils.provideSession
 
-        TableA.insert((14, 1))
-        TableA.insert((18, 1))
-        TableA.insert((15, 2))
-        TableA.insert((20, 3))
-      }
+      (TableA.ddl).create
+
+      TableA.insert((14, 1))
+      TableA.insert((18, 1))
+      TableA.insert((15, 2))
+      TableA.insert((20, 3))
     }
     Test
   }
