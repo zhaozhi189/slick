@@ -76,7 +76,7 @@ object TestTable {
 
   object YYTableA extends YYTableA(TableA)
 
-  def underlying[E](x: YYRep[E]): TableA.type = x.underlying.asInstanceOf[TableA.type]
+  def underlying[E](x: YYRep[E]): TableA = x.underlying.asInstanceOf[TableA]
 }
 
 case class YYTableARow(val id: SInt, val grade: SInt) extends YYTableRow
