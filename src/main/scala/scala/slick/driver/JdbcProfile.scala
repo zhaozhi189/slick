@@ -108,7 +108,8 @@ object JdbcProfile {
 trait JdbcDriver extends SqlDriver
   with JdbcProfile
   with JdbcStatementBuilderComponent
-  with JdbcTypesComponent { driver =>
+  with JdbcTypesComponent
+  with JdbcTypeProviderComponent { driver =>
 
   val profile: JdbcProfile = this
 
