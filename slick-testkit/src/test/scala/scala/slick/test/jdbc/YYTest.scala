@@ -6,9 +6,9 @@ import org.junit.Assert._
 import scala.slick.yy._
 
 class YYTest {
-  import Shallow._
 
   @Test def simpleTest() {
+    import Shallow._
     val y = 5.3
     val r1 = slickYY {
       val q = Query(y)
@@ -47,6 +47,7 @@ class YYTest {
   }
 
   @Test def tuple2Test() {
+    import Shallow._
     val r1 = slickYY {
       val x = (1, 2)
       Query(x).first
@@ -85,6 +86,7 @@ class YYTest {
   }
 
   @Test def testTableTest() {
+    import Shallow._
     initTable()
     val r1 = slickYY {
       val tbl = Table.test()
@@ -136,6 +138,21 @@ class YYTest {
     assertEquals("Query map (_1, _2) of Table + if", List((14, "One"), (18, "One"), (15, "More"), (20, "More")), r7.toList)
 
     YYUtils.closeSession
+  }
+
+  @Test
+  def virtualizationTest {
+    import scala.slick.driver.H2Driver.Implicit._
+    import Shallow._
+    slickYYVirt {
+      case class Coffee(id: Int, name: String);
+      ()
+    }
+    slickYYV {
+      case class Coffee(id: Int, name: String);
+      val q = Query(2)
+      q.toSeq
+    }
   }
 
   def initTable() {

@@ -49,6 +49,7 @@ trait YYSlickCake {
   object Table {
     def test(): Table[TableRow] = TestTable.YYTableA.asInstanceOf[Table[TableRow]]
     def test2(): Table[TableARow] = TestTable.YYTableA
+//    def getTable[S, T <: Table[S]](implicit mapping: Table[S]): Table[S] = mapping
   }
 
 }

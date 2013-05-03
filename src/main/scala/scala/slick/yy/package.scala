@@ -7,6 +7,8 @@ import scala.reflect.macros.Context
 package object yy {
   def slickYY[T](block: => T): T = macro implementations.slickYY[T]
   def slickYYDebug[T](block: => T): T = macro implementations.slickYYDebug[T]
+  def slickYYVirt[T](block: => T): T = macro implementations.slickYYVirt[T]
+  def slickYYV[T](block: => T): T = macro implementations.slickYYV[T]
 
   object implementations {
     def slickYY[T](c: Context)(block: c.Expr[T]): c.Expr[T] =
@@ -22,5 +24,54 @@ package object yy {
         debug = true,
         rep = false,
         slickHack = true)(block)
+
+    def slickYYVirt[T](c: Context)(block: c.Expr[T]): c.Expr[T] =
+      {
+        val tree = {
+          new {
+            val universe: c.universe.type = c.universe
+            val mirror = c.mirror
+          } with YYTransformers
+        }.ClassVirtualization(block.tree)
+        val newTree = c.resetAllAttrs(tree)
+        println(newTree)
+        c.Expr[T](newTree)
+      }
+
+    def slickYYV[T](c: Context)(block: c.Expr[T]): c.Expr[T] = {
+      /*val tree = {
+          new {
+            val universe: c.universe.type = c.universe
+            val mirror = c.mirror
+          } with YYTransformers
+        }.ClassVirtualization(block.tree)
+        //        val newTree = tree
+        //        val newTree = c.typeCheck(tree)
+//        val newTree = c.resetAllAttrs(tree)
+        val newTree = c.resetAllAttrs(block.tree)
+        println(s"""=================
+$newTree
+==========================""")
+        new YYTransformer[c.type, T](c, "scala.slick.yy.SlickYinYang",
+          shallow = false,
+          debug = true,
+          rep = false,
+          slickHack = true)(c.Expr[T](newTree))
+          */
+      
+      val ClassVirtualization = {
+          new {
+            val universe: c.universe.type = c.universe
+            val mirror = c.mirror
+          } with YYTransformers
+        }.ClassVirtualization.asInstanceOf[(Context#Tree => Context#Tree)]
+
+      new YYTransformer[c.type, T](c, "scala.slick.yy.SlickYinYang",
+        shallow = false,
+        debug = true,
+        rep = false,
+        slickHack = true,
+        preprocess = ClassVirtualization)(block)
+    }
   }
 }
