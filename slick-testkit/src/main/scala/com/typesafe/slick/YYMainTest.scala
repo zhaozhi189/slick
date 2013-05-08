@@ -11,7 +11,7 @@ object YYMainTest {
 
   val tree2 = reify {
     @Entity("COFFEE") case class Coffee(@Entity("ID") id: String, grade: Int)
-    val c = Coffee("2", 3)
+    implicit val c = Coffee("2", 3)
     case class Supplier(sid: Long)
   }.tree
   import scala.slick.yy.YYColumn
@@ -33,14 +33,27 @@ object YYMainTest {
     }
   }.tree
   val vtree2 = ClassVirtualization(tree2)
+  val tree4 = reify {
+    trait Rep[T] {
+      def underlying: T
+    }
+    trait Table[T]
+    class A
+    implicit object A extends A
+    class B(val a: A)
+    implicit object implicitB extends B(A)
+    implicit def convB(x: Rep[B]): Table[B] = x.asInstanceOf[Table[B]]
+	implicit def convC(x: Rep[A]): B = new B(x.underlying.asInstanceOf[A])
+  }.tree
   def main(args: Array[String]) {
     //    val tree = tb.parse("@asghar case class A(@hello id: String)")
     //    val ttree = ClassVirtualization(tree)
-    println(showRaw(tree2))
+    //    println(showRaw(tree2))
+    println(showRaw(tree4))
     //    println(ttree)
     //    println(typeToTable(typeOf[Coffee]))
     //    println(showRaw(vtree2))
-    println(vtree2)
+    //    println(vtree2)
     //    println(showRaw(tree3))
   }
 }

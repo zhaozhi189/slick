@@ -16,6 +16,10 @@ trait SlickYinYang extends scala.slick.driver.JdbcDriver.Implicits with BaseYinY
 
 trait SlickConstYinYang extends scala.slick.driver.JdbcDriver.Implicits with BaseYinYang { self: SlickYinYang =>
 
+  implicit object LiftUnit extends LiftEvidence[Unit, Unit] {
+    def lift(v: Unit): Unit = v
+    def hole(tpe: Manifest[Any], symbolId: scala.Int): Unit = ()
+  }
   implicit object LiftInt extends LiftEvidence[scala.Int, Int] {
     def lift(v: scala.Int): Int = YYConstColumn(v)
     def hole(tpe: Manifest[Any], symbolId: scala.Int): Int = null

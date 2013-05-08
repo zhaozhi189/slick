@@ -46,11 +46,13 @@ class YYTest {
     assertEquals("Query filter + Column == (2)", true, r7.head)
   }
 
-  @Test def tuple2Test() {
+  @Test
+  def tuple2Test() {
     import Shallow._
     val r1 = slickYY {
       val x = (1, 2)
-      Query(x).first
+      val q = Query(x)
+      q.first
     }
     assertEquals("Query of tuple2", (1, 2), r1)
     val r2 = slickYY {
@@ -137,22 +139,120 @@ class YYTest {
     }
     assertEquals("Query map (_1, _2) of Table + if", List((14, "One"), (18, "One"), (15, "More"), (20, "More")), r7.toList)
 
+    val r8 = slickYY {
+      val tbl = Table.getTable[TableARow]
+      val q = Query.ofTable(tbl) map (x => x.id)
+      q.toSeq
+    }
+    assertEquals("Query map _1 of Table by getTable", List(14, 18, 15, 20), r8.toList)
+
     YYUtils.closeSession
   }
 
   @Test
   def virtualizationTest {
+    initCoffeeTable()
     import scala.slick.driver.H2Driver.Implicit._
     import Shallow._
-    slickYYVirt {
+    val r1 = slickYYV {
+      case class Coffee(id: Int, name: String);
+      val tbl = Table.getTable[Coffee]
+      val q = Query.ofTable(tbl)
+      val q1 = q map (x => x.id)
+      q1.toSeq
+    }
+    assertEquals("Query map _1 of Virtualized Table", 4, r1.length)
+    val r2 = slickYYV {
+      case class Coffee(id: Int, name: String);
+      val tbl = Table.getTable[Coffee]
+      val q = Query.ofTable(tbl)
+      val q1 = q map (x => (x.id, x.name))
+      q1.toSeq
+    }
+    assertEquals("Query map (_1, _2) of Table", List((1, "one"), (2, "two"), (3, "three"), (10, "ten")), r2.toList)
+    val r3 = slickYYV {
+      case class Coffee(id: Int, name: String);
+      val tbl = Table.getTable[Coffee]
+      val q = Query.ofTable(tbl)
+      val q1 = q map (x => (x.id, if (x.id < 3) "Low" else x.name))
+      q1.toSeq
+    }
+    assertEquals("Query map (_1, _2) of Table + if", List((1, "Low"), (2, "Low"), (3, "three"), (10, "ten")), r3.toList)
+    val r4 = slickYYV {
+      @Entity("COFFEE") case class Coff(@Entity("ID") idNumber: Int, name: String);
+      val tbl = Table.getTable[Coff]
+      val q = Query.ofTable(tbl)
+      val q1 = q map (x => (x.idNumber, x.name))
+      q1.toSeq
+    }
+    assertEquals("Query map (_1, _2) of Table + Annotation", List((1, "one"), (2, "two"), (3, "three"), (10, "ten")), r4.toList)
+    val r5 = slickYYV {
+      @Entity("COFFEE") case class Coff(@Entity("ID") idNumber: Int, name: String);
+      val tbl = Table.getTable[Coff]
+      val q = Query.ofTable(tbl)
+      val q1 = q map (x => x.idNumber) filter (x => x < 3)
+      q1.toSeq
+    }
+    assertEquals("Query map _1 filter of Table + Annotation", List(1, 2), r5.toList)
+    val r6 = slickYYV {
+      @Entity("COFFEE") case class Coff(@Entity("ID") idNumber: Int, name: String);
+      val tbl = Table.getTable[Coff]
+      val q = Query.ofTable(tbl)
+      val q1 = q map (x => (x.idNumber, x.name)) filter (x => x._1 < 3)
+      q1.toSeq
+    }
+    assertEquals("Query map (_1, _2) filter of Table + Annotation", List((1, "one"), (2, "two")), r6.toList)
+    val r7 = slickYYV {
+      @Entity("COFFEE") case class Coff(@Entity("ID") idNumber: Int, @Entity("NAME") _2: String);
+      val tbl = Table.getTable[Coff]
+      val q = Query.ofTable(tbl)
+      val q1 = q filter (x => x.idNumber == 3) map (x => (x.idNumber, x._2))
+      q1.toSeq
+    }
+    assertEquals("Query filter == map (_1, _2) of Table + Annotation", List((3, "three")), r7.toList)
+    /*
+    slickYYV {
       case class Coffee(id: Int, name: String);
       ()
     }
-    slickYYV {
+    slickYYVDebug {
       case class Coffee(id: Int, name: String);
-      val q = Query(2)
-      q.toSeq
+      val tbl = Table.getTable[Coffee]
+      val q = Query.ofTable(tbl)
+      println(q.toSeq.length)
+      ()
     }
+    slickYYVDebug {
+      case class Coffee(id: Int, name: String);
+      val tbl = Table.getTable[Coffee]
+      val q = Query.ofTable(tbl)
+      println(q.toSeq.length)
+      ()
+    }
+    */
+    YYUtils.closeSession
+  }
+
+  def initCoffeeTable() {
+    import scala.slick.driver.H2Driver.simple._
+
+    object Coffee extends Table[(Int, String)]("COFFEE") {
+      def id = column[Int]("ID")
+      def name = column[String]("NAME")
+      def * = id ~ name
+    }
+
+    object Test {
+      implicit val session = YYUtils.provideSession
+
+      (Coffee.ddl).create
+
+      Coffee.insert((1, "one"))
+      Coffee.insert((2, "two"))
+      Coffee.insert((3, "three"))
+      Coffee.insert((10, "ten"))
+    }
+    Test
   }
 
   def initTable() {

@@ -128,6 +128,8 @@ trait YYQuery[U] extends QueryOps[U] with YYRep[Seq[U]] {
   def toSeq: Seq[U] = JdbcDriver.Implicit.queryToQueryInvoker(query).list.toSeq
 }
 
+//trait YYTableQuery[U] extends YYQuery[U] with QueryTableOps[U]
+
 object YYQuery {
   def create[U](q: Query[Rep[U], U], e: Rep[U]): YYQuery[U] = {
     class YYQueryInst[E1 <: YYRep[U]] extends YYQuery[U] {
@@ -138,6 +140,11 @@ object YYQuery {
     e match {
       case col: Column[U] => new YYQueryInst[YYColumn[U]] {}
       case tab: AbstractTable[U] => new YYQueryInst[YYTable[U]] {}
+      //      case tab: AbstractTable[U] => new YYTableQuery[U] {
+      //        type E = YYTable[U]
+      //        val query = q
+      //        override def repValue: Rep[U] = e
+      //      }
       case tupN: Projection[U] => new YYQueryInst[YYProjection[U]]
     }
   }
@@ -159,7 +166,8 @@ object YYQuery {
 }
 
 trait QueryOps[T] { self: YYQuery[T] =>
-  private def underlyingProjection[S](projection: E => YYRep[S]): Rep[T] => Rep[S] = {
+  //private def underlyingProjection[S](projection: E => YYRep[S]): Rep[T] => Rep[S] = {
+  private def underlyingProjection[S](projection: YYRep[T] => YYRep[S]): Rep[T] => Rep[S] = {
     def underlyingProjection(x: Rep[T]): Rep[S] = projection({
       YYValue[T, E](x)
     }).underlying
@@ -167,16 +175,18 @@ trait QueryOps[T] { self: YYQuery[T] =>
     val res = underlyingProjection _
     res
   }
-
-  def map[S](projection: E => YYRep[S]): YYQuery[S] = {
+  //  def map[S](projection: E => YYRep[S]): YYQuery[S] = {
+  def map[S](projection: YYRep[T] => YYRep[S]): YYQuery[S] = {
     val liftedResult = query.map(underlyingProjection(projection))(YYShape.ident[S])
     YYQuery.fromQuery(liftedResult)
   }
-  def filter(projection: E => YYRep[Boolean]): YYQuery[T] = {
+  //  def filter(projection: E => YYRep[Boolean]): YYQuery[T] = {
+  def filter(projection: YYRep[T] => YYRep[Boolean]): YYQuery[T] = {
     val liftedResult = query.filter(underlyingProjection(projection))(BooleanRepCanBeQueryCondition)
     YYQuery.fromQuery(liftedResult)
   }
-  def flatMap[S](projection: E => YYQuery[S]): YYQuery[S] = {
+  //  def flatMap[S](projection: E => YYQuery[S]): YYQuery[S] = {
+  def flatMap[S](projection: YYRep[T] => YYQuery[S]): YYQuery[S] = {
     def qp(x: Rep[T]): Query[Rep[S], S] = projection({
       YYValue[T, E](x)
     }).query
@@ -186,6 +196,41 @@ trait QueryOps[T] { self: YYQuery[T] =>
   def length: YYColumn[Int] =
     YYColumn(query.length)
 }
+
+//trait QueryTableOps[T] extends QueryOps[T] { self: YYQuery[T] =>
+//  //private def underlyingProjection[S](projection: E => YYRep[S]): Rep[T] => Rep[S] = {
+//  private def underlyingProjection[S](projection: YYRep[T] => YYRep[S]): Rep[T] => Rep[S] = {
+//    def underlyingProjection(x: Rep[T]): Rep[S] = projection({
+//      //      YYValue[T, E](x)
+//      YYValue.applyUntyped(x)
+//    }).underlying
+//
+//    val res = underlyingProjection _
+//    res
+//  }
+//
+//  //  override def map[S](projection: E => YYRep[S]): YYQuery[S] = {
+//  override def map[S](projection: YYRep[T] => YYRep[S]): YYQuery[S] = {
+//    println("Table map!!!")
+//    val liftedResult = query.map(underlyingProjection(projection))(YYShape.ident[S])
+//    YYQuery.fromQuery(liftedResult)
+//  }
+//  //  override def filter(projection: E => YYRep[Boolean]): YYQuery[T] = {
+//  override def filter(projection: YYRep[T] => YYRep[Boolean]): YYQuery[T] = {
+//    val liftedResult = query.filter(underlyingProjection(projection))(BooleanRepCanBeQueryCondition)
+//    YYQuery.fromQuery(liftedResult)
+//  }
+//  //  override def flatMap[S](projection: E => YYQuery[S]): YYQuery[S] = {
+//  override def flatMap[S](projection: YYRep[T] => YYQuery[S]): YYQuery[S] = {
+//    def qp(x: Rep[T]): Query[Rep[S], S] = projection({
+//      YYValue[T, E](x)
+//    }).query
+//    YYQuery.fromQuery(query.flatMap(qp))
+//  }
+//
+//  override def length: YYColumn[Int] =
+//    YYColumn(query.length)
+//}
 
 sealed trait YYProjection[T <: Product] extends YYRep[T] with Product {
   def canEqual(that: Any): Boolean = that.isInstanceOf[YYProjection[_]]

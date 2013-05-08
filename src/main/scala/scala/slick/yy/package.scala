@@ -7,8 +7,8 @@ import scala.reflect.macros.Context
 package object yy {
   def slickYY[T](block: => T): T = macro implementations.slickYY[T]
   def slickYYDebug[T](block: => T): T = macro implementations.slickYYDebug[T]
-  def slickYYVirt[T](block: => T): T = macro implementations.slickYYVirt[T]
   def slickYYV[T](block: => T): T = macro implementations.slickYYV[T]
+  def slickYYVDebug[T](block: => T): T = macro implementations.slickYYVDebug[T]
 
   object implementations {
     def slickYY[T](c: Context)(block: c.Expr[T]): c.Expr[T] =
@@ -25,20 +25,33 @@ package object yy {
         rep = false,
         slickHack = true)(block)
 
-    def slickYYVirt[T](c: Context)(block: c.Expr[T]): c.Expr[T] =
+    def slickYYV[T](c: Context)(block: c.Expr[T]): c.Expr[T] =
       {
-        val tree = {
+        //        val tree = {
+        //          new {
+        //            val universe: c.universe.type = c.universe
+        //            val mirror = c.mirror
+        //          } with YYTransformers
+        //        }.ClassVirtualization(block.tree)
+        //        val newTree = c.resetAllAttrs(tree)
+        //        println(newTree)
+        //        c.Expr[T](newTree)
+        val ClassVirtualization = {
           new {
             val universe: c.universe.type = c.universe
             val mirror = c.mirror
           } with YYTransformers
-        }.ClassVirtualization(block.tree)
-        val newTree = c.resetAllAttrs(tree)
-        println(newTree)
-        c.Expr[T](newTree)
+        }.ClassVirtualization.asInstanceOf[(Context#Tree => Context#Tree)]
+
+        new YYTransformer[c.type, T](c, "scala.slick.yy.SlickYinYang",
+          shallow = false,
+          debug = false,
+          rep = false,
+          slickHack = true,
+          preprocess = ClassVirtualization)(block)
       }
 
-    def slickYYV[T](c: Context)(block: c.Expr[T]): c.Expr[T] = {
+    def slickYYVDebug[T](c: Context)(block: c.Expr[T]): c.Expr[T] = {
       /*val tree = {
           new {
             val universe: c.universe.type = c.universe
@@ -58,13 +71,13 @@ $newTree
           rep = false,
           slickHack = true)(c.Expr[T](newTree))
           */
-      
+
       val ClassVirtualization = {
-          new {
-            val universe: c.universe.type = c.universe
-            val mirror = c.mirror
-          } with YYTransformers
-        }.ClassVirtualization.asInstanceOf[(Context#Tree => Context#Tree)]
+        new {
+          val universe: c.universe.type = c.universe
+          val mirror = c.mirror
+        } with YYTransformers
+      }.ClassVirtualization.asInstanceOf[(Context#Tree => Context#Tree)]
 
       new YYTransformer[c.type, T](c, "scala.slick.yy.SlickYinYang",
         shallow = false,
