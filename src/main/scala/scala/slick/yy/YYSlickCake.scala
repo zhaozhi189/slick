@@ -21,15 +21,10 @@ trait YYSlickCake {
   type YYTableRow = Table[TableRow] // w/o it: "type YYTableRow is not a member of CAKE"
 
   //order stuff
-  //  type ShallowOrdered[T] = YYColumnOrdered[T]
   type Ordering[T] = YYOrdering[T]
   val Ordering = YYOrdering
-  //  import YYOrdering._
   val String = YYOrdering.String
   val Int = YYOrdering.Int
-  //  object Order {
-  //    def apply[T](t: Column[T]) = YYColumnOrdered.apply[T](t)
-  //  }
 
   implicit def fixClosureContraVariance[T, U <: YYRep[T], S](x: U => S) =
     x.asInstanceOf[YYRep[T] => S]

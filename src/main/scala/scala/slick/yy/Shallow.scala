@@ -6,7 +6,6 @@ object Shallow {
     def map[S](projection: T => S): Query[S] = ???
     def filter(projection: T => Boolean): Query[T] = ???
     def withFilter(projection: T => Boolean): Query[T] = ???
-    //    def sortBy[S](projection: T => S): Query[T] = ???
     def sortBy[S](projection: T => S)(implicit ord: Ordering[S]): Query[T] = ???
     def sorted(implicit ord: Ordering[T]): Query[T] = ???
     def take(i: Int): Query[T] = ???
@@ -29,15 +28,6 @@ object Shallow {
     def test2(): Table[TableARow] = ???
     def getTable[S]: Table[S] = ???
   }
-
-  //  class Order[T](val t: T) {
-  //    def asc: T = ???
-  //    def desc: T = ???
-  //  }
-  //
-  //  object Order {
-  //    implicit def apply[T](t: T) = new Order(t)
-  //  }
 
   type TableRow = YYSlickCake#TableRow
 

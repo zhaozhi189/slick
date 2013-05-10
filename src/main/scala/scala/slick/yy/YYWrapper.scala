@@ -27,6 +27,7 @@ import scala.slick.lifted.WrappingQuery
 import scala.slick.lifted.CanBeQueryCondition
 import scala.slick.driver.JdbcDriver
 import scala.slick.driver.H2Driver
+import scala.slick.lifted.{ Ordered => LOrdered }
 
 trait YYWraper[UT] {
   type NonRep = UT
@@ -63,13 +64,9 @@ trait YYColumn[T] extends ColumnOps[T] with YYRep[T] {
   def extendedColumn = new PlainColumnExtensionMethods(column)
   def n = Node(column)
   implicit def om[T2, TR] = OptionMapper2.plain.asInstanceOf[OptionMapper2[T, T, TR, T, T2, TR]]
-  //  def asc = YYColumnOrdered(column.asc)
-  //  def desc = YYColumnOrdered(column.desc)
 }
 
 // order stuff
-
-import scala.slick.lifted.{ Ordered => LOrdered }
 
 class YYOrdering[T](val ord: Ordering[T], val isReverse: Boolean = false) { self =>
   def reverse: YYOrdering[T] =
@@ -117,23 +114,6 @@ object YYOrdering {
     fromOrdering(Ordering.Tuple2(ord1.ord, ord2.ord))
 }
 
-//trait YYOrdered {
-//  type UT <: scala.slick.lifted.Ordered
-//  def underlying: UT
-//}
-//
-//case class YYColumnOrdered[T](val columnOrdered: ColumnOrdered[T]) extends YYOrdered {
-//  override type UT = ColumnOrdered[T]
-//  override def underlying = columnOrdered
-//  def asc = YYColumnOrdered(columnOrdered.asc)
-//  def desc = YYColumnOrdered(columnOrdered.desc)
-//}
-//
-//object YYColumnOrdered {
-//  def apply[T](yyColumn: YYColumn[T]): YYColumnOrdered[T] =
-//    yyColumn.asc
-//}
-
 object YYColumn {
   def apply[T](c: Column[T]): YYColumn[T] = new YYColumn[T] {
     val column = c
@@ -161,7 +141,6 @@ class YYConstColumn[T](val constColumn: ConstColumn[T]) extends YYColumn[T] {
 }
 
 object YYConstColumn {
-  //  def apply[T: TypedType](v: T): YYColumn[T] = YYColumn(ConstColumn[T](v))
   def apply[T: TypedType](v: T): YYColumn[T] = new YYConstColumn(ConstColumn[T](v))
 }
 
@@ -261,28 +240,9 @@ trait QueryOps[T] { self: YYQuery[T] =>
     YYQuery.fromQuery(query.flatMap(qp))
   }
 
-  // FIXME it considers only ascending order
-  //  def repToOrdered[S](rep: Rep[S]): scala.slick.lifted.Ordered = {
-  //    rep match {
-  //      case column: Column[S] => column.asc
-  //      case product: Product => new scala.slick.lifted.Ordered(
-  //        product.productIterator.flatMap { x =>
-  //          repToOrdered(x.asInstanceOf[Rep[_]]).columns
-  //        }.toSeq)
-  //    }
-  //  }
-
-  //  def sortBy[S](f: YYRep[T] => YYRep[S]): YYQuery[T] = {
-  //    val newView = (x: Rep[S]) => repToOrdered(x)
-  //    val liftedResult = query.sortBy(underlyingProjection(f))(newView)
-  //    //    val liftedResult = query.sortBy(underlyingF)(newView)
-  //    YYQuery.fromQuery(liftedResult)
-  //  }
   def sortBy[S](f: YYRep[T] => YYRep[S])(ord: YYOrdering[S]): YYQuery[T] = {
-    //    val newView = (x: Rep[S]) => repToOrdered(x)
     val newView = (x: Rep[S]) => ord.toOrdered(x)
     val liftedResult = query.sortBy(underlyingProjection(f))(newView)
-    //    val liftedResult = query.sortBy(underlyingF)(newView)
     YYQuery.fromQuery(liftedResult)
   }
   def sorted(ord: YYOrdering[T]): YYQuery[T] = {
@@ -290,8 +250,6 @@ trait QueryOps[T] { self: YYQuery[T] =>
     val liftedResult = query.sorted(newView)
     YYQuery.fromQuery(liftedResult)
   }
-
-  //  def sortBy[S <: YYOrdered](f: YYRep[T] => S): YYQuery[T] = ??? // TODO
 
   // ugly!!!
   def take(i: YYColumn[Int]): YYQuery[T] = {

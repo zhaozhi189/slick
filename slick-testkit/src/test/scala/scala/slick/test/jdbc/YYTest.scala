@@ -154,7 +154,6 @@ class YYTest {
   @Test
   def virtualizationTest {
     initCoffeeTable()
-    //    import scala.slick.driver.H2Driver.Implicit._
     import jdbcTypes._
     import Shallow._
     val r1 = slickYYV {
@@ -218,7 +217,6 @@ class YYTest {
   @Test
   def sortTest {
     initSortTable()
-    //    import scala.slick.driver.H2Driver.Implicit._
     import jdbcTypes._
     import Shallow._
     val r1 = slickYYV {
@@ -327,22 +325,6 @@ class YYTest {
     }
     assertEquals("Query sorted by reverse of (name, id) of Table + Ordering", List((3, "three"), (10, "ten"), (2, "one"), (1, "one")), r13.toList)
 
-    //    val r1 = slickYYVDebug {
-    //      case class Coffee(id: Int, name: String);
-    //      val tbl = Table.getTable[Coffee]
-    //      val q = Query.ofTable(tbl)
-    //      val q1 = q map (x => (x.id, x.name)) sortBy (x => (x._1, x._2)) 
-    //      q1.toSeq
-    //    }
-
-    //    val r3 = slickYYVDebug {
-    //      case class Coffee(id: Int, name: String);
-    //      val tbl = Table.getTable[Coffee]
-    //      val q = Query.ofTable(tbl)
-    //      val q1 = q map (x => (x.id, x.name)) sortBy (x => Order(x._1).desc)
-    //      q1.toSeq
-    //    }
-    //    assertEquals("Query sort by id of Table", List((10, "ten"), (3, "three"), (2, "two"), (1, "one")), r3.toList)
     YYUtils.closeSession
   }
 
@@ -371,7 +353,6 @@ class YYTest {
       case class Coffee(id: Int, name: String);
       val tbl = Table.getTable[Coffee]
       val q = Query.ofTable(tbl)
-      //      val q1 = q map (x => (x.id, if (x.id < 3) "Low" else x.name))
       val q1 = for (x <- q) yield (x.id, if (x.id < 3) "Low" else x.name)
       q1.toSeq
     }
@@ -388,7 +369,6 @@ class YYTest {
       @Entity("COFFEE") case class Coff(@Entity("ID") idNumber: Int, name: String);
       val tbl = Table.getTable[Coff]
       val q = Query.ofTable(tbl)
-      //      val q1 = q map (x => x.idNumber) filter (x => x < 3)
       val q1 = for (x <- q if x.idNumber < 3) yield x.idNumber
       q1.toSeq
     }
@@ -397,7 +377,6 @@ class YYTest {
       @Entity("COFFEE") case class Coff(@Entity("ID") idNumber: Int, name: String);
       val tbl = Table.getTable[Coff]
       val q = Query.ofTable(tbl)
-      //      val q1 = q map (x => (x.idNumber, x.name)) filter (x => x._1 < 3)
       val q1 = for (x <- q if x.idNumber < 3) yield (x.idNumber, x.name)
       q1.toSeq
     }
