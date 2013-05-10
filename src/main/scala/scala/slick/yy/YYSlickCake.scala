@@ -12,7 +12,6 @@ trait YYSlickCake {
   type Column[T] = YYColumn[T]
   type Table[T] = YYTable[T]
   type Query[T] = YYQuery[T]
-//  type QueryTable[T] = YYTableQuery[T]
   type Int = YYColumn[SInt]
   type Long = YYColumn[scala.Long]
   type Double = YYColumn[scala.Double]
@@ -21,35 +20,23 @@ trait YYSlickCake {
   type TableRow = scala.slick.yy.YYTableRow
   type YYTableRow = Table[TableRow] // w/o it: "type YYTableRow is not a member of CAKE"
 
+  //order stuff
+  //  type ShallowOrdered[T] = YYColumnOrdered[T]
+  type Ordering[T] = YYOrdering[T]
+  val Ordering = YYOrdering
+  //  import YYOrdering._
+  val String = YYOrdering.String
+  val Int = YYOrdering.Int
+  //  object Order {
+  //    def apply[T](t: Column[T]) = YYColumnOrdered.apply[T](t)
+  //  }
+
   implicit def fixClosureContraVariance[T, U <: YYRep[T], S](x: U => S) =
     x.asInstanceOf[YYRep[T] => S]
-
-  //  case class HackOutput[T](x: T)
-  //
-  //  implicit def closureTableRow1[T <: TableRow, S](x: T => S): YYRep[T] => HackOutput[S] = {
-  //    def newX(i: YYRep[T]) = HackOutput(x.asInstanceOf[YYRep[T] => S](i))
-  //    newX _
-  //  }
-  //  implicit def closureTableRow1[T <: TableRow, S](x: T => S): YYRep[T] => S = {
-  //    def newX(i: YYRep[T]) = x.asInstanceOf[YYRep[T] => S](i)
-  //    newX _
-  //  }
-  //    x.asInstanceOf[(YYRep[T] => S)]
-
-  //  implicit def closureTableRow2[T <: TableRow, S <: TableRow](x: T => S) =
-  //    x.asInstanceOf[(YYRep[T] => YYRep[S])]
-
-  //  trait DummyRow
-  //  implicit def dummyRowConverter(t: AbstractTable[DummyRow]): Table[DummyRow] = ???
-
-  implicit def convertTableRow[T <: TableRow](tr: T): Table[T] = {
-    (tr.asInstanceOf[YYRep[T]].underlying.asInstanceOf[AbstractTable[T]]).asInstanceOf[Table[T]]
-  }
 
   object Query {
     def apply[T](v: YYRep[T]): YYQuery[T] = YYQuery.apply(v)
     def ofTable[T](t: YYTable[T]): YYQuery[T] = YYQuery.apply(t)
-//    def ofTable2[T, U <: YYTable[T]](t: U): QueryTable[U] = YYQuery.apply(t).asInstanceOf[YYTableQuery[U]]
   }
 
   def __ifThenElse[T: BaseTypedType](c: => Boolean, t: Column[T], e: Column[T]): Column[T] = {
@@ -71,14 +58,12 @@ trait YYSlickCake {
   type YYTableARow = Table[TableARow] // w/o it: "type YYTableARow is not a member of CAKE"
 
   implicit def convertYYTableARow(t: Table[TableARow]) = new TestTable.YYTableA(t.underlying.asInstanceOf[TestTable.TableA])
-  //  implicit val tableARowTable: TestTable.YYTableA = TestTable.YYTableA
   implicit object implicitYYTableA extends TestTable.YYTableA(TestTable.TableA)
 
   object Table {
     def test(): Table[TableRow] = TestTable.YYTableA.asInstanceOf[Table[TableRow]]
     def test2(): Table[TableARow] = TestTable.YYTableA
     def getTable[S](implicit mapping: Table[S]): Table[S] = mapping
-    //    def get[S <: Table[_]](implicit mapping: S): S = mapping
   }
 
 }

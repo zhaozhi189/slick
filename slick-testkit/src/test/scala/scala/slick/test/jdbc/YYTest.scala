@@ -7,6 +7,8 @@ import scala.slick.yy._
 
 class YYTest {
 
+  val jdbcTypes = new scala.slick.driver.JdbcDriver.ImplicitJdbcTypes()
+
   @Test def simpleTest() {
     import Shallow._
     val y = 5.3
@@ -152,7 +154,8 @@ class YYTest {
   @Test
   def virtualizationTest {
     initCoffeeTable()
-    import scala.slick.driver.H2Driver.Implicit._
+    //    import scala.slick.driver.H2Driver.Implicit._
+    import jdbcTypes._
     import Shallow._
     val r1 = slickYYV {
       case class Coffee(id: Int, name: String);
@@ -210,26 +213,203 @@ class YYTest {
       q1.toSeq
     }
     assertEquals("Query filter == map (_1, _2) of Table + Annotation", List((3, "three")), r7.toList)
-    /*
-    slickYYV {
-      case class Coffee(id: Int, name: String);
-      ()
-    }
-    slickYYVDebug {
-      case class Coffee(id: Int, name: String);
-      val tbl = Table.getTable[Coffee]
-      val q = Query.ofTable(tbl)
-      println(q.toSeq.length)
-      ()
-    }
-    slickYYVDebug {
+    YYUtils.closeSession
+  }
+  @Test
+  def sortTest {
+    initSortTable()
+    //    import scala.slick.driver.H2Driver.Implicit._
+    import jdbcTypes._
+    import Shallow._
+    val r1 = slickYYV {
       case class Coffee(id: Int, name: String);
       val tbl = Table.getTable[Coffee]
       val q = Query.ofTable(tbl)
-      println(q.toSeq.length)
-      ()
+      val q1 = q map (x => (x.id, x.name)) sortBy (x => x._2)
+      q1.toSeq
     }
-    */
+    assertEquals("Query sort by name of Table", List((2, "one"), (1, "one"), (10, "ten"), (3, "three")), r1.toList)
+    val r2 = slickYYV {
+      case class Coffee(id: Int, name: String);
+      val tbl = Table.getTable[Coffee]
+      val q = Query.ofTable(tbl)
+      val q1 = q map (x => (x.id, x.name)) sortBy (x => x._1)
+      q1.toSeq
+    }
+    assertEquals("Query sort by id of Table", List((1, "one"), (2, "one"), (3, "three"), (10, "ten")), r2.toList)
+    val r3 = slickYYV {
+      case class Coffee(id: Int, name: String);
+      val tbl = Table.getTable[Coffee]
+      val q = Query.ofTable(tbl)
+      val q1 = q map (x => (x.id, x.name)) sortBy (x => (x._2, x._1))
+      q1.toSeq
+    }
+    assertEquals("Query sort by (name, id) of Table", List((1, "one"), (2, "one"), (10, "ten"), (3, "three")), r3.toList)
+    val r4 = slickYYV {
+      case class Coffee(id: Int, name: String);
+      val tbl = Table.getTable[Coffee]
+      val q = Query.ofTable(tbl)
+      val q1 = q map (x => (x.id, x.name)) sortBy (x => (x._2, x._1)) take 2
+      q1.toSeq
+    }
+    assertEquals("Query sort by (name, id) + take of Table", List((1, "one"), (2, "one")), r4.toList)
+    val r5 = slickYYV {
+      case class Coffee(id: Int, name: String);
+      val tbl = Table.getTable[Coffee]
+      val q = Query.ofTable(tbl)
+      val q1 = q map (x => (x.id, x.name)) sortBy (x => (x._1, x._2)) drop 1
+      q1.toSeq
+    }
+    assertEquals("Query sort by (id, name) + drop of Table", List((2, "one"), (3, "three"), (10, "ten")), r5.toList)
+
+    val r6 = slickYYV {
+      case class Coffee(id: Int, name: String);
+      val tbl = Table.getTable[Coffee]
+      val q = Query.ofTable(tbl)
+      val q1 = q.map(x => (x.id, x.name)).sortBy(x => x._1)(Ordering[Int])
+      q1.toSeq
+    }
+    assertEquals("Query sort by id of Table + Ordering", List((1, "one"), (2, "one"), (3, "three"), (10, "ten")), r6.toList)
+    val r7 = slickYYV {
+      case class Coffee(id: Int, name: String);
+      val tbl = Table.getTable[Coffee]
+      val q = Query.ofTable(tbl)
+      val q1 = q.map(x => (x.id, x.name)).sortBy(x => x._1)(Ordering[Int].reverse)
+      q1.toSeq
+    }
+    assertEquals("Query sort by reverse of id of Table + Ordering", List((10, "ten"), (3, "three"), (2, "one"), (1, "one")), r7.toList)
+    val r8 = slickYYV {
+      case class Coffee(id: Int, name: String);
+      val tbl = Table.getTable[Coffee]
+      val q = Query.ofTable(tbl)
+      val q1 = q.map(x => (x.id, x.name)).sortBy(x => x._2)(Ordering[String].reverse)
+      q1.toSeq
+    }
+    assertEquals("Query sort by reverse of name of Table + Ordering", List((3, "three"), (10, "ten"), (2, "one"), (1, "one")), r8.toList)
+    val r9 = slickYYV {
+      case class Coffee(id: Int, name: String);
+      val tbl = Table.getTable[Coffee]
+      val q = Query.ofTable(tbl)
+      val q1 = q.map(x => (x.id, x.name)).sortBy(x => (x._2, x._1))(Ordering[(String, Int)])
+      q1.toSeq
+    }
+    assertEquals("Query sort by (name, id) of Table + Ordering", List((1, "one"), (2, "one"), (10, "ten"), (3, "three")), r9.toList)
+    val r10 = slickYYV {
+      case class Coffee(id: Int, name: String);
+      val tbl = Table.getTable[Coffee]
+      val q = Query.ofTable(tbl)
+      val q1 = q.map(x => (x.id, x.name)).sortBy(x => (x._2, x._1))(Ordering[(String, Int)].reverse)
+      q1.toSeq
+    }
+    assertEquals("Query sort by reverse of (name, id) of Table + Ordering", List((3, "three"), (10, "ten"), (2, "one"), (1, "one")), r10.toList)
+    val r11 = slickYYV {
+      case class Coffee(id: Int, name: String);
+      val tbl = Table.getTable[Coffee]
+      val q = Query.ofTable(tbl)
+      val q1 = q.map(x => (x.id, x.name)).sortBy(x => (x._2, x._1))(Ordering.by[(String, Int), String](_._1).reverse)
+      q1.toSeq
+    }
+    assertEquals("Query sort by reverse of name of Table + Ordering", List((3, "three"), (10, "ten"), (2, "one"), (1, "one")), r11.toList)
+    val r12 = slickYYV {
+      case class Coffee(id: Int, name: String);
+      val tbl = Table.getTable[Coffee]
+      val q = Query.ofTable(tbl)
+      val q1 = q.map(x => (x.id, x.name)).sorted(Ordering.by[(Int, String), String](_._2).reverse)
+      q1.toSeq
+    }
+    assertEquals("Query sorted reverse of name of Table + Ordering", List((3, "three"), (10, "ten"), (2, "one"), (1, "one")), r12.toList)
+    val r13 = slickYYV {
+      case class Coffee(id: Int, name: String);
+      val tbl = Table.getTable[Coffee]
+      val q = Query.ofTable(tbl)
+      val q1 = q.map(x => (x.id, x.name)).sorted(Ordering.by[(Int, String), (String, Int)](x => (x._2, x._1)).reverse)
+      q1.toSeq
+    }
+    assertEquals("Query sorted by reverse of (name, id) of Table + Ordering", List((3, "three"), (10, "ten"), (2, "one"), (1, "one")), r13.toList)
+
+    //    val r1 = slickYYVDebug {
+    //      case class Coffee(id: Int, name: String);
+    //      val tbl = Table.getTable[Coffee]
+    //      val q = Query.ofTable(tbl)
+    //      val q1 = q map (x => (x.id, x.name)) sortBy (x => (x._1, x._2)) 
+    //      q1.toSeq
+    //    }
+
+    //    val r3 = slickYYVDebug {
+    //      case class Coffee(id: Int, name: String);
+    //      val tbl = Table.getTable[Coffee]
+    //      val q = Query.ofTable(tbl)
+    //      val q1 = q map (x => (x.id, x.name)) sortBy (x => Order(x._1).desc)
+    //      q1.toSeq
+    //    }
+    //    assertEquals("Query sort by id of Table", List((10, "ten"), (3, "three"), (2, "two"), (1, "one")), r3.toList)
+    YYUtils.closeSession
+  }
+
+  @Test
+  def forComprehensionTest() {
+    initCoffeeTable()
+    import jdbcTypes._
+    import Shallow._
+    val r1 = slickYYV {
+      case class Coffee(id: Int, name: String);
+      val tbl = Table.getTable[Coffee]
+      val q = Query.ofTable(tbl)
+      val q1 = for (x <- q) yield x.id
+      q1.toSeq
+    }
+    assertEquals("Query forComprehension map _1 of Virtualized Table", 4, r1.length)
+    val r2 = slickYYV {
+      case class Coffee(id: Int, name: String);
+      val tbl = Table.getTable[Coffee]
+      val q = Query.ofTable(tbl)
+      val q1 = for (x <- q) yield (x.id, x.name)
+      q1.toSeq
+    }
+    assertEquals("Query forComprehension map (_1, _2) of Table", List((1, "one"), (2, "two"), (3, "three"), (10, "ten")), r2.toList)
+    val r3 = slickYYV {
+      case class Coffee(id: Int, name: String);
+      val tbl = Table.getTable[Coffee]
+      val q = Query.ofTable(tbl)
+      //      val q1 = q map (x => (x.id, if (x.id < 3) "Low" else x.name))
+      val q1 = for (x <- q) yield (x.id, if (x.id < 3) "Low" else x.name)
+      q1.toSeq
+    }
+    assertEquals("Query forComprehension map (_1, _2) of Table + if", List((1, "Low"), (2, "Low"), (3, "three"), (10, "ten")), r3.toList)
+    val r4 = slickYYV {
+      @Entity("COFFEE") case class Coff(@Entity("ID") idNumber: Int, name: String);
+      val tbl = Table.getTable[Coff]
+      val q = Query.ofTable(tbl)
+      val q1 = for (x <- q) yield (x.idNumber, x.name)
+      q1.toSeq
+    }
+    assertEquals("Query forComprehension map (_1, _2) of Table + Annotation", List((1, "one"), (2, "two"), (3, "three"), (10, "ten")), r4.toList)
+    val r5 = slickYYV {
+      @Entity("COFFEE") case class Coff(@Entity("ID") idNumber: Int, name: String);
+      val tbl = Table.getTable[Coff]
+      val q = Query.ofTable(tbl)
+      //      val q1 = q map (x => x.idNumber) filter (x => x < 3)
+      val q1 = for (x <- q if x.idNumber < 3) yield x.idNumber
+      q1.toSeq
+    }
+    assertEquals("Query forComprehension map _1 filter of Table + Annotation", List(1, 2), r5.toList)
+    val r6 = slickYYV {
+      @Entity("COFFEE") case class Coff(@Entity("ID") idNumber: Int, name: String);
+      val tbl = Table.getTable[Coff]
+      val q = Query.ofTable(tbl)
+      //      val q1 = q map (x => (x.idNumber, x.name)) filter (x => x._1 < 3)
+      val q1 = for (x <- q if x.idNumber < 3) yield (x.idNumber, x.name)
+      q1.toSeq
+    }
+    assertEquals("Query forComprehension map (_1, _2) filter of Table + Annotation", List((1, "one"), (2, "two")), r6.toList)
+    val r7 = slickYYV {
+      @Entity("COFFEE") case class Coff(@Entity("ID") idNumber: Int, @Entity("NAME") _2: String);
+      val tbl = Table.getTable[Coff]
+      val q = Query.ofTable(tbl)
+      val q1 = for (x <- q if x.idNumber == 3) yield (x.idNumber, x._2)
+      q1.toSeq
+    }
+    assertEquals("Query forComprehension filter == map (_1, _2) of Table + Annotation", List((3, "three")), r7.toList)
     YYUtils.closeSession
   }
 
@@ -249,6 +429,27 @@ class YYTest {
 
       Coffee.insert((1, "one"))
       Coffee.insert((2, "two"))
+      Coffee.insert((3, "three"))
+      Coffee.insert((10, "ten"))
+    }
+    Test
+  }
+  def initSortTable() {
+    import scala.slick.driver.H2Driver.simple._
+
+    object Coffee extends Table[(Int, String)]("COFFEE") {
+      def id = column[Int]("ID")
+      def name = column[String]("NAME")
+      def * = id ~ name
+    }
+
+    object Test {
+      implicit val session = YYUtils.provideSession
+
+      (Coffee.ddl).create
+
+      Coffee.insert((2, "one"))
+      Coffee.insert((1, "one"))
       Coffee.insert((3, "three"))
       Coffee.insert((10, "ten"))
     }

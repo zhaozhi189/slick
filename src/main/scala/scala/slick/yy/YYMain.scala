@@ -27,6 +27,8 @@ object YYTest extends YYSlickCake {
       TableA.insert((18, 1))
       TableA.insert((15, 2))
       TableA.insert((20, 3))
+      
+      TableA.map( x => x.id + 1)
 
       val yt = YYTableA
       val yq = YYQuery(yt)

@@ -4,6 +4,7 @@ import scala.slick.lifted.Column
 import scala.slick.lifted.Projection
 import scala.slick.lifted.Projection2
 import scala.slick.lifted.Query
+import scala.slick.lifted.ColumnOrdered
 import scala.slick.ast.Node
 import scala.slick.ast.Library
 import scala.slick.lifted.FunctionSymbolExtensionMethods
@@ -62,7 +63,76 @@ trait YYColumn[T] extends ColumnOps[T] with YYRep[T] {
   def extendedColumn = new PlainColumnExtensionMethods(column)
   def n = Node(column)
   implicit def om[T2, TR] = OptionMapper2.plain.asInstanceOf[OptionMapper2[T, T, TR, T, T2, TR]]
+  //  def asc = YYColumnOrdered(column.asc)
+  //  def desc = YYColumnOrdered(column.desc)
 }
+
+// order stuff
+
+import scala.slick.lifted.{ Ordered => LOrdered }
+
+class YYOrdering[T](val ord: Ordering[T], val isReverse: Boolean = false) { self =>
+  def reverse: YYOrdering[T] =
+    new YYOrdering(ord.reverse, !isReverse) {
+      override def toOrdered(x: Rep[T]) = new LOrdered(self.toOrdered(x).columns.map {
+        case (n, ord) => (n, ord.reverse)
+      })
+    }
+
+  def toOrdered(x: Rep[T]): LOrdered = YYOrdering.repToOrdered(x)
+}
+
+object YYOrdering {
+  def apply[T](ord: YYOrdering[T]): YYOrdering[T] =
+    ord
+
+  def by[T, S](f: YYRep[T] => YYRep[S])(ord: YYOrdering[S]): YYOrdering[T] = {
+    val newOrd = Ordering.by({ (x: T) => f(YYConstColumn(x)(null /*FIXME*/ )).asInstanceOf[YYConstColumn[S]].value })(ord.ord)
+    new YYOrdering[T](newOrd) {
+      override def toOrdered(x: Rep[T]): LOrdered = {
+        val newX = f(YYValue(x)).underlying
+        YYOrdering.repToOrdered(newX)
+      }
+    }
+  }
+
+  def repToOrdered[T](rep: Rep[T]): LOrdered = {
+    rep match {
+      case column: Column[T] => column.asc
+      case product: Product => new LOrdered(
+        product.productIterator.flatMap { x =>
+          repToOrdered(x.asInstanceOf[Rep[_]]).columns
+        }.toSeq)
+    }
+  }
+
+  def fromOrdering[T](ord: Ordering[T]): YYOrdering[T] =
+    new YYOrdering(ord)
+
+  val String = fromOrdering(Ordering.String)
+  val Int = fromOrdering(Ordering.Int)
+
+  // FIXME generalize
+  def Tuple2[T1, T2](ord1: YYOrdering[T1], ord2: YYOrdering[T2]): YYOrdering[(T1, T2)] =
+    fromOrdering(Ordering.Tuple2(ord1.ord, ord2.ord))
+}
+
+//trait YYOrdered {
+//  type UT <: scala.slick.lifted.Ordered
+//  def underlying: UT
+//}
+//
+//case class YYColumnOrdered[T](val columnOrdered: ColumnOrdered[T]) extends YYOrdered {
+//  override type UT = ColumnOrdered[T]
+//  override def underlying = columnOrdered
+//  def asc = YYColumnOrdered(columnOrdered.asc)
+//  def desc = YYColumnOrdered(columnOrdered.desc)
+//}
+//
+//object YYColumnOrdered {
+//  def apply[T](yyColumn: YYColumn[T]): YYColumnOrdered[T] =
+//    yyColumn.asc
+//}
 
 object YYColumn {
   def apply[T](c: Column[T]): YYColumn[T] = new YYColumn[T] {
@@ -85,8 +155,14 @@ object YYTable {
   }
 }
 
+class YYConstColumn[T](val constColumn: ConstColumn[T]) extends YYColumn[T] {
+  override val column = constColumn
+  val value = constColumn.value
+}
+
 object YYConstColumn {
-  def apply[T: TypedType](v: T): YYColumn[T] = YYColumn(ConstColumn[T](v))
+  //  def apply[T: TypedType](v: T): YYColumn[T] = YYColumn(ConstColumn[T](v))
+  def apply[T: TypedType](v: T): YYColumn[T] = new YYConstColumn(ConstColumn[T](v))
 }
 
 trait ColumnOps[T] { self: YYColumn[T] =>
@@ -124,11 +200,10 @@ trait YYQuery[U] extends QueryOps[U] with YYRep[Seq[U]] {
   // FIXME
   implicit def session = YYUtils.provideSession
 
-  def first: U = JdbcDriver.Implicit.queryToQueryInvoker(query).first
-  def toSeq: Seq[U] = JdbcDriver.Implicit.queryToQueryInvoker(query).list.toSeq
+  // FIXME it should be generalized to use all drivers
+  def first: U = H2Driver.Implicit.queryToQueryInvoker(query).first
+  def toSeq: Seq[U] = H2Driver.Implicit.queryToQueryInvoker(query).list.toSeq
 }
-
-//trait YYTableQuery[U] extends YYQuery[U] with QueryTableOps[U]
 
 object YYQuery {
   def create[U](q: Query[Rep[U], U], e: Rep[U]): YYQuery[U] = {
@@ -140,11 +215,6 @@ object YYQuery {
     e match {
       case col: Column[U] => new YYQueryInst[YYColumn[U]] {}
       case tab: AbstractTable[U] => new YYQueryInst[YYTable[U]] {}
-      //      case tab: AbstractTable[U] => new YYTableQuery[U] {
-      //        type E = YYTable[U]
-      //        val query = q
-      //        override def repValue: Rep[U] = e
-      //      }
       case tupN: Projection[U] => new YYQueryInst[YYProjection[U]]
     }
   }
@@ -166,7 +236,6 @@ object YYQuery {
 }
 
 trait QueryOps[T] { self: YYQuery[T] =>
-  //private def underlyingProjection[S](projection: E => YYRep[S]): Rep[T] => Rep[S] = {
   private def underlyingProjection[S](projection: YYRep[T] => YYRep[S]): Rep[T] => Rep[S] = {
     def underlyingProjection(x: Rep[T]): Rep[S] = projection({
       YYValue[T, E](x)
@@ -175,17 +244,16 @@ trait QueryOps[T] { self: YYQuery[T] =>
     val res = underlyingProjection _
     res
   }
-  //  def map[S](projection: E => YYRep[S]): YYQuery[S] = {
   def map[S](projection: YYRep[T] => YYRep[S]): YYQuery[S] = {
     val liftedResult = query.map(underlyingProjection(projection))(YYShape.ident[S])
     YYQuery.fromQuery(liftedResult)
   }
-  //  def filter(projection: E => YYRep[Boolean]): YYQuery[T] = {
   def filter(projection: YYRep[T] => YYRep[Boolean]): YYQuery[T] = {
     val liftedResult = query.filter(underlyingProjection(projection))(BooleanRepCanBeQueryCondition)
     YYQuery.fromQuery(liftedResult)
   }
-  //  def flatMap[S](projection: E => YYQuery[S]): YYQuery[S] = {
+  def withFilter(projection: YYRep[T] => YYRep[Boolean]): YYQuery[T] =
+    filter(projection)
   def flatMap[S](projection: YYRep[T] => YYQuery[S]): YYQuery[S] = {
     def qp(x: Rep[T]): Query[Rep[S], S] = projection({
       YYValue[T, E](x)
@@ -193,50 +261,59 @@ trait QueryOps[T] { self: YYQuery[T] =>
     YYQuery.fromQuery(query.flatMap(qp))
   }
 
+  // FIXME it considers only ascending order
+  //  def repToOrdered[S](rep: Rep[S]): scala.slick.lifted.Ordered = {
+  //    rep match {
+  //      case column: Column[S] => column.asc
+  //      case product: Product => new scala.slick.lifted.Ordered(
+  //        product.productIterator.flatMap { x =>
+  //          repToOrdered(x.asInstanceOf[Rep[_]]).columns
+  //        }.toSeq)
+  //    }
+  //  }
+
+  //  def sortBy[S](f: YYRep[T] => YYRep[S]): YYQuery[T] = {
+  //    val newView = (x: Rep[S]) => repToOrdered(x)
+  //    val liftedResult = query.sortBy(underlyingProjection(f))(newView)
+  //    //    val liftedResult = query.sortBy(underlyingF)(newView)
+  //    YYQuery.fromQuery(liftedResult)
+  //  }
+  def sortBy[S](f: YYRep[T] => YYRep[S])(ord: YYOrdering[S]): YYQuery[T] = {
+    //    val newView = (x: Rep[S]) => repToOrdered(x)
+    val newView = (x: Rep[S]) => ord.toOrdered(x)
+    val liftedResult = query.sortBy(underlyingProjection(f))(newView)
+    //    val liftedResult = query.sortBy(underlyingF)(newView)
+    YYQuery.fromQuery(liftedResult)
+  }
+  def sorted(ord: YYOrdering[T]): YYQuery[T] = {
+    val newView = (x: Rep[T]) => ord.toOrdered(x)
+    val liftedResult = query.sorted(newView)
+    YYQuery.fromQuery(liftedResult)
+  }
+
+  //  def sortBy[S <: YYOrdered](f: YYRep[T] => S): YYQuery[T] = ??? // TODO
+
+  // ugly!!!
+  def take(i: YYColumn[Int]): YYQuery[T] = {
+    val v = i.asInstanceOf[YYConstColumn[Int]].constColumn.value
+    YYQuery.fromQuery(query.take(v))
+  }
+
+  def drop(i: YYColumn[Int]): YYQuery[T] = {
+    val v = i.asInstanceOf[YYConstColumn[Int]].constColumn.value
+    YYQuery.fromQuery(query.drop(v))
+  }
+
   def length: YYColumn[Int] =
     YYColumn(query.length)
 }
-
-//trait QueryTableOps[T] extends QueryOps[T] { self: YYQuery[T] =>
-//  //private def underlyingProjection[S](projection: E => YYRep[S]): Rep[T] => Rep[S] = {
-//  private def underlyingProjection[S](projection: YYRep[T] => YYRep[S]): Rep[T] => Rep[S] = {
-//    def underlyingProjection(x: Rep[T]): Rep[S] = projection({
-//      //      YYValue[T, E](x)
-//      YYValue.applyUntyped(x)
-//    }).underlying
-//
-//    val res = underlyingProjection _
-//    res
-//  }
-//
-//  //  override def map[S](projection: E => YYRep[S]): YYQuery[S] = {
-//  override def map[S](projection: YYRep[T] => YYRep[S]): YYQuery[S] = {
-//    println("Table map!!!")
-//    val liftedResult = query.map(underlyingProjection(projection))(YYShape.ident[S])
-//    YYQuery.fromQuery(liftedResult)
-//  }
-//  //  override def filter(projection: E => YYRep[Boolean]): YYQuery[T] = {
-//  override def filter(projection: YYRep[T] => YYRep[Boolean]): YYQuery[T] = {
-//    val liftedResult = query.filter(underlyingProjection(projection))(BooleanRepCanBeQueryCondition)
-//    YYQuery.fromQuery(liftedResult)
-//  }
-//  //  override def flatMap[S](projection: E => YYQuery[S]): YYQuery[S] = {
-//  override def flatMap[S](projection: YYRep[T] => YYQuery[S]): YYQuery[S] = {
-//    def qp(x: Rep[T]): Query[Rep[S], S] = projection({
-//      YYValue[T, E](x)
-//    }).query
-//    YYQuery.fromQuery(query.flatMap(qp))
-//  }
-//
-//  override def length: YYColumn[Int] =
-//    YYColumn(query.length)
-//}
 
 sealed trait YYProjection[T <: Product] extends YYRep[T] with Product {
   def canEqual(that: Any): Boolean = that.isInstanceOf[YYProjection[_]]
 }
 
 object YYProjection {
+  // TODO generalize it for TupleN
   def apply[T1, T2](tuple2: Projection2[T1, T2]): YYProjection2[T1, T2] = {
     new YYProjection2[T1, T2] {
       def _1 = YYColumn(tuple2._1)
@@ -245,15 +322,18 @@ object YYProjection {
     }
   }
 
+  // TODO generalize it for TupleN
   def apply[T1, T2](_1: Column[T1], _2: Column[T2]): YYProjection2[T1, T2] = {
     apply(_1 ~ _2)
   }
 
+  // TODO generalize it for TupleN
   def fromYY[T1, T2](_1: YYColumn[T1], _2: YYColumn[T2]): YYProjection2[T1, T2] = {
     apply(_1.underlying ~ _2.underlying)
   }
 }
 
+// TODO generalize it for TupleN
 trait YYProjection2[T1, T2] extends Product2[YYColumn[T1], YYColumn[T2]] with YYProjection[(T1, T2)] {
   override def toString = "YY(" + _1 + ", " + _2 + ")"
 }

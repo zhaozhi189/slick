@@ -8,6 +8,9 @@ object YYMainTest {
   import scala.reflect.runtime.{ universe => ru }
   import ru._
   val tb = runtimeMirror(getClass.getClassLoader).mkToolBox()
+  
+  val l = List(4, 2, 1)
+  l.sortBy(identity)
 
   val tree2 = reify {
     @Entity("COFFEE") case class Coffee(@Entity("ID") id: String, grade: Int)
