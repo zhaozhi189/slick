@@ -5,6 +5,7 @@ import scala.slick.lifted.Projection
 import scala.slick.lifted.Projection2
 import scala.slick.lifted.Query
 import scala.slick.lifted.ColumnOrdered
+import scala.slick.jdbc.JdbcBackend
 import scala.slick.ast.Node
 import scala.slick.ast.Library
 import scala.slick.lifted.FunctionSymbolExtensionMethods
@@ -28,6 +29,7 @@ import scala.slick.lifted.CanBeQueryCondition
 import scala.slick.driver.JdbcDriver
 import scala.slick.driver.H2Driver
 import scala.slick.lifted.{ Ordered => LOrdered }
+import scala.slick.jdbc.UnitInvoker
 
 trait YYWraper[UT] {
   type NonRep = UT
@@ -176,12 +178,38 @@ trait YYQuery[U] extends QueryOps[U] with YYRep[Seq[U]] {
     def apply(value: Rep[Boolean]) = value.asInstanceOf[Column[Boolean]]
   }
 
-  // FIXME
-  implicit def session = YYUtils.provideSession
+//  implicit def getSession: JdbcBackend#Session =
+//    YYUtils.provideSession
 
-  // FIXME it should be generalized to use all drivers
-  def first: U = H2Driver.Implicit.queryToQueryInvoker(query).first
-  def toSeq: Seq[U] = H2Driver.Implicit.queryToQueryInvoker(query).list.toSeq
+  private def invoker(implicit driver: JdbcDriver): UnitInvoker[U] =
+    driver.Implicit.queryToQueryInvoker(query)
+
+  def first(implicit driver: JdbcDriver, session: JdbcBackend#Session): U =
+    invoker.first
+  def toSeq(implicit driver: JdbcDriver, session: JdbcBackend#Session): Seq[U] =
+    invoker.list.toSeq
+
+  def firstImplicit: (JdbcDriver => JdbcBackend#Session => U) = (driver: JdbcDriver) =>
+    (session: JdbcBackend#Session) =>
+      invoker(driver).first()(session)
+  def toSeqImplicit: (JdbcDriver => JdbcBackend#Session => Seq[U]) = (driver: JdbcDriver) =>
+    (session: JdbcBackend#Session) =>
+      invoker(driver).list()(session).toSeq
+
+  def getInvoker: (JdbcDriver => UnitInvoker[U]) = (driver: JdbcDriver) =>
+    invoker(driver)
+
+  //  def first(driver: JdbcDriver): U =
+  //    driver.Implicit.queryToQueryInvoker(query).first
+  //  def toSeq(driver: JdbcDriver): Seq[U] =
+  //    driver.Implicit.queryToQueryInvoker(query).list.toSeq
+  //
+  //  def firstSession(driver: JdbcDriver): (JdbcBackend#Session => U) = (s: JdbcBackend#Session) => {
+  //    driver.Implicit.queryToQueryInvoker(query).first()(s)
+  //  }
+  //  def toSeqSession(driver: JdbcDriver): (JdbcBackend#Session => Seq[U]) = (s: JdbcBackend#Session) => {
+  //    driver.Implicit.queryToQueryInvoker(query).list()(s)
+  //  }
 }
 
 object YYQuery {

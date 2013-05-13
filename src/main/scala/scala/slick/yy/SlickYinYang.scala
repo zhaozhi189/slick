@@ -3,7 +3,7 @@ package scala.slick.yy
 import ch.epfl.lamp.yinyang.api.BaseYinYang
 import ch.epfl.lamp.yinyang.api.Interpreted
 
-trait SlickYinYang extends scala.slick.driver.JdbcDriver.Implicits with BaseYinYang with SlickConstYinYang with YYSlickCake with Interpreted {
+trait SlickYinYang extends scala.slick.driver.JdbcDriver.ImplicitJdbcTypes with BaseYinYang with SlickConstYinYang with YYSlickCake with Interpreted {
   def stagingAnalyze(allHoles: List[scala.Int]): List[scala.Int] = allHoles
 
   def reset() = ()
@@ -14,7 +14,16 @@ trait SlickYinYang extends scala.slick.driver.JdbcDriver.Implicits with BaseYinY
   def main(): Any
 }
 
-trait SlickConstYinYang extends scala.slick.driver.JdbcDriver.Implicits with BaseYinYang { self: SlickYinYang =>
+//trait ImplicitSlickYinYang extends SlickYinYang {
+//  type Session = scala.slick.jdbc.JdbcBackend#Session
+//  def session: Session
+//
+//  override def interpret[T: Manifest](params: Any*): T = {
+//    main().asInstanceOf[(scala.slick.jdbc.JdbcBackend#Session) => T](session)
+//  }
+//}
+
+trait SlickConstYinYang extends scala.slick.driver.JdbcDriver.ImplicitJdbcTypes with BaseYinYang { self: SlickYinYang =>
 
   implicit object LiftUnit extends LiftEvidence[Unit, Unit] {
     def lift(v: Unit): Unit = v

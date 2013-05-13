@@ -5,6 +5,8 @@ import scala.language.implicitConversions
 import scala.slick.lifted.Case
 import scala.slick.ast.BaseTypedType
 import scala.slick.lifted.AbstractTable
+import scala.slick.driver.H2Driver
+import scala.slick.jdbc.JdbcBackend
 
 trait YYSlickCake {
   type CakeRep[T] = YYRep[T]
@@ -19,12 +21,19 @@ trait YYSlickCake {
   type Boolean = YYColumn[scala.Boolean]
   type TableRow = scala.slick.yy.YYTableRow
   type YYTableRow = Table[TableRow] // w/o it: "type YYTableRow is not a member of CAKE"
+  type Invoker[T] = Shallow.Invoker[T]
 
   //order stuff
   type Ordering[T] = YYOrdering[T]
   val Ordering = YYOrdering
   val String = YYOrdering.String
   val Int = YYOrdering.Int
+
+  // FIXME hack
+  implicit val driver = H2Driver
+
+  // FIXME hack
+  implicit def getSession: JdbcBackend#Session = YYUtils.provideSession
 
   implicit def fixClosureContraVariance[T, U <: YYRep[T], S](x: U => S) =
     x.asInstanceOf[YYRep[T] => S]

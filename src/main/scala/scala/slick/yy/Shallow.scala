@@ -1,6 +1,12 @@
 package scala.slick.yy
 
+import scala.slick.driver.JdbcDriver
+import scala.slick.jdbc.UnitInvoker
+import scala.slick.jdbc.JdbcBackend
+
 object Shallow {
+
+  type Invoker[T] = (JdbcDriver => UnitInvoker[T])
 
   class Query[T] {
     def map[S](projection: T => S): Query[S] = ???
@@ -11,7 +17,12 @@ object Shallow {
     def take(i: Int): Query[T] = ???
     def drop(i: Int): Query[T] = ???
     def toSeq: Seq[T] = ???
+    //    def toSeq(implicit driver: JdbcDriver): Seq[T] = ???
+    //    def toSeqSession(implicit driver: JdbcDriver): Seq[T] = ???
     def first: T = ???
+    def getInvoker: Invoker[T] = ???
+    def firstImplicit: (JdbcDriver => JdbcBackend#Session => T) = ???
+    def toSeqImplicit: (JdbcDriver => JdbcBackend#Session => Seq[T]) = ???
   }
 
   object Query {

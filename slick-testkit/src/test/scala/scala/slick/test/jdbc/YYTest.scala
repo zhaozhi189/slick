@@ -4,6 +4,8 @@ import scala.language.implicitConversions
 import org.junit.Test
 import org.junit.Assert._
 import scala.slick.yy._
+import scala.slick.driver.H2Driver
+import scala.slick.jdbc.JdbcBackend
 
 class YYTest {
 
@@ -148,7 +150,36 @@ class YYTest {
     }
     assertEquals("Query map _1 of Table by getTable", List(14, 18, 15, 20), r8.toList)
 
-    YYUtils.closeSession
+    DatabaseHandler.closeSession
+  }
+
+  @Test def testTableImplicitTest() {
+    import Shallow._
+    initTable()
+    implicit def driver = H2Driver
+    implicit val session = DatabaseHandler.provideSession
+    val r6 = slickYYImplicit {
+      val tbl = Table.test2()
+      val q = Query ofTable tbl map (x => (x.id, x.grade))
+      q.toSeqImplicit
+    }
+    assertEquals("Query map (_1, _2) of Table", List((14, 1), (18, 1), (15, 2), (20, 3)), r6.toList)
+
+    val r7 = slickYYImplicit {
+      val tbl = Table.test2()
+      val q = Query ofTable tbl map (x => (x.id, if (x.grade == 1) "One" else "More"))
+      q.toSeqImplicit
+    }
+    assertEquals("Query map (_1, _2) of Table + if", List((14, "One"), (18, "One"), (15, "More"), (20, "More")), r7.toList)
+
+    val r8 = slickYYImplicit {
+      val tbl = Table.getTable[TableARow]
+      val q = Query.ofTable(tbl) map (x => x.id)
+      q.toSeqImplicit
+    }
+    assertEquals("Query map _1 of Table by getTable", List(14, 18, 15, 20), r8.toList)
+
+    DatabaseHandler.closeSession
   }
 
   @Test
@@ -220,8 +251,9 @@ class YYTest {
     //      q1.toSeq
     //    }
     //    assertEquals("Query map _1 of Virtualized Table", 4, r8.length)
-    YYUtils.closeSession
+    DatabaseHandler.closeSession
   }
+
   @Test
   def virtualizationProTest {
     initCoffeeTable()
@@ -287,8 +319,9 @@ class YYTest {
     //    }
     //    assertEquals("Query identity map of Virtualized++ Table head", Coffee(1, "one"), r8.head)
     //    assertEquals("Query identity map of Virtualized++ Table", List(Coffee(1, "one"), Coffee(2, "two"), Coffee(3, "three"), Coffee(10, "ten")), r8.toList)
-    YYUtils.closeSession
+    DatabaseHandler.closeSession
   }
+
   @Test
   def sortTest {
     initSortTable()
@@ -400,7 +433,7 @@ class YYTest {
     }
     assertEquals("Query sorted by reverse of (name, id) of Table + Ordering", List((3, "three"), (10, "ten"), (2, "one"), (1, "one")), r13.toList)
 
-    YYUtils.closeSession
+    DatabaseHandler.closeSession
   }
 
   @Test
@@ -464,7 +497,76 @@ class YYTest {
       q1.toSeq
     }
     assertEquals("Query forComprehension filter == map (_1, _2) of Table + Annotation", List((3, "three")), r7.toList)
-    YYUtils.closeSession
+    DatabaseHandler.closeSession
+  }
+
+  @Test
+  def virtualizationProInvokerTest {
+    initCoffeeTable()
+    import jdbcTypes._
+    import Shallow._
+    def driver = H2Driver
+    implicit val session = DatabaseHandler.provideSession
+    case class Coffee(id: Int, name: String);
+    val r1 = slickYYVP {
+      val tbl = Table.getTable[Coffee]
+      val q = Query.ofTable(tbl)
+      val q1 = q map (x => x.id)
+      q1.getInvoker
+    }(driver)
+    assertEquals("Query map _1 of Virtualized++ Table", 4, r1.list.length)
+    val r2 = slickYYVP {
+      val tbl = Table.getTable[Coffee]
+      val q = Query.ofTable(tbl)
+      val q1 = q map (x => x.id)
+      q1.toSeqImplicit
+    }(driver)(session)
+    assertEquals("Query map _1 of Virtualized++ Table", 4, r2.length)
+    //    val r2 = slickYYVP {
+    //      val tbl = Table.getTable[Coffee]
+    //      val q = Query.ofTable(tbl)
+    //      val q1 = q map (x => (x.id, x.name))
+    //      q1.toSeq
+    //    }
+    //    assertEquals("Query map (_1, _2) of Virtualized++ Table", List((1, "one"), (2, "two"), (3, "three"), (10, "ten")), r2.toList)
+    //    val r3 = slickYYVP {
+    //      val tbl = Table.getTable[Coffee]
+    //      val q = Query.ofTable(tbl)
+    //      val q1 = q map (x => (x.id, if (x.id < 3) "Low" else x.name))
+    //      q1.toSeq
+    //    }
+    //    assertEquals("Query map (_1, _2) of Virtualized++ Table + if", List((1, "Low"), (2, "Low"), (3, "three"), (10, "ten")), r3.toList)
+    //    @Entity("COFFEE") case class Coff(@Entity("ID") idNumber: Int, name: String);
+    //    val r4 = slickYYVP {
+    //      val tbl = Table.getTable[Coff]
+    //      val q = Query.ofTable(tbl)
+    //      val q1 = q map (x => (x.idNumber, x.name))
+    //      q1.toSeq
+    //    }
+    //    assertEquals("Query map (_1, _2) of Virtualized++ Table + Annotation", List((1, "one"), (2, "two"), (3, "three"), (10, "ten")), r4.toList)
+    //    val r5 = slickYYVP {
+    //      val tbl = Table.getTable[Coff]
+    //      val q = Query.ofTable(tbl)
+    //      val q1 = q map (x => x.idNumber) filter (x => x < 3)
+    //      q1.toSeq
+    //    }
+    //    assertEquals("Query map _1 filter of Virtualized++ Table + Annotation", List(1, 2), r5.toList)
+    //    val r6 = slickYYVP {
+    //      val tbl = Table.getTable[Coff]
+    //      val q = Query.ofTable(tbl)
+    //      val q1 = q map (x => (x.idNumber, x.name)) filter (x => x._1 < 3)
+    //      q1.toSeq
+    //    }
+    //    assertEquals("Query map (_1, _2) filter of Virtualized++ Table + Annotation", List((1, "one"), (2, "two")), r6.toList)
+    //    @Entity("COFFEE") case class Coffn(@Entity("ID") idNumber: Int, @Entity("NAME") _2: String);
+    //    val r7 = slickYYVP {
+    //      val tbl = Table.getTable[Coffn]
+    //      val q = Query.ofTable(tbl)
+    //      val q1 = q filter (x => x.idNumber == 3) map (x => (x.idNumber, x._2))
+    //      q1.toSeq
+    //    }
+    //    assertEquals("Query filter == map (_1, _2) of Virtualized++ Table + Annotation", List((3, "three")), r7.toList)
+    DatabaseHandler.closeSession
   }
 
   def initCoffeeTable() {
@@ -476,8 +578,8 @@ class YYTest {
       def * = id ~ name
     }
 
-    object Test {
-      implicit val session = YYUtils.provideSession
+    object Test extends YYSlickCake {
+      implicit val session = DatabaseHandler.provideSession
 
       (Coffee.ddl).create
 
@@ -488,6 +590,7 @@ class YYTest {
     }
     Test
   }
+
   def initSortTable() {
     import scala.slick.driver.H2Driver.simple._
 
@@ -497,8 +600,8 @@ class YYTest {
       def * = id ~ name
     }
 
-    object Test {
-      implicit val session = YYUtils.provideSession
+    object Test extends YYSlickCake {
+      implicit val session = DatabaseHandler.provideSession
 
       (Coffee.ddl).create
 
@@ -518,7 +621,7 @@ class YYTest {
       import TestTable.underlying
       import TestTable.convertTuple2ToTableARow
 
-      implicit val session = YYUtils.provideSession
+      implicit val session = DatabaseHandler.provideSession
 
       (TableA.ddl).create
 
@@ -529,4 +632,16 @@ class YYTest {
     }
     Test
   }
+
+  val DatabaseHandler = YYUtils
+
+  //  object DatabaseHandler {
+  //    val conn = driver.simple.Database.forURL("jdbc:h2:mem:test1", driver = "org.h2.Driver")
+  //    private var session = conn.createSession
+  //    def provideSession: JdbcBackend#Session = session
+  //    def closeSession {
+  //      session.close
+  //      session = conn.createSession
+  //    }
+  //  }
 }
