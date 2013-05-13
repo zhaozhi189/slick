@@ -7,6 +7,7 @@ import scala.slick.typeproviders.MacroHelpers
 import scala.slick.typeproviders.DefaultContextUtils
 import scala.reflect.api.Universe
 import scala.reflect.api.Mirror
+import scala.collection.mutable.ArrayBuffer
 
 trait YYTransformers {
   val universe: Universe
@@ -20,22 +21,30 @@ trait YYTransformers {
     val universe: YYTransformers.this.universe.type = YYTransformers.this.universe
   } with MacroHelpers(DefaultContextUtils, "")
 
+  var virtualTraverserIsApplied: Boolean = false
+  var virtualSymbols: List[Symbol] = Nil
+
   object ClassVirtualization extends (Tree => Tree) {
     def apply(tree: Tree): Tree = {
-      new ClassVirtualization().transform(tree)
+      val cv = new ClassVirtualization()
+      if (!virtualTraverserIsApplied)
+        cv.transform(tree)
+      else {
+        cv.transformBySymbols(tree, virtualSymbols)
+      }
     }
+  }
+  // workaround for compatibility of 2.10 and macro paradise
+  object TermName {
+    def apply(s: String): TermName = newTermName(s)
+    def unapply(t: TermName): Option[String] = Some(t.toString)
+  }
+  object TypeName {
+    def apply(s: String): TypeName = newTypeName(s)
+    def unapply(t: TypeName): Option[String] = Some(t.toString)
   }
 
   class ClassVirtualization extends Transformer {
-    // workaround for compatibility of 2.10 and macro paradise
-    object TermName {
-      def apply(s: String): TermName = newTermName(s)
-      def unapply(t: TermName): Option[String] = Some(t.toString)
-    }
-    object TypeName {
-      def apply(s: String): TypeName = newTypeName(s)
-      def unapply(t: TypeName): Option[String] = Some(t.toString)
-    }
 
     def isCaseClassDef(tree: Tree): Boolean = tree match {
       case ClassDef(mods, _, _, _) if mods.hasFlag(CASE) => true
@@ -49,35 +58,36 @@ trait YYTransformers {
       case _ => false
     }
 
-    def getTableFromCaseClassDef(classDef: ClassDef) = classDef match {
-      case ClassDef(mods, TypeName(tName), tparams, impl @ Template(parents: List[Tree], self: ValDef, body: List[Tree])) if isCaseClassDef(classDef) => {
-        def getNameOfSymbol(symbol: Symbol): Option[String] = {
-          // workaround for SI-7424
-          symbol.typeSignature
-          symbol.annotations.foreach(_.tpe)
+    def getTableFromSymbol(symbol: Symbol) = {
+      def getNameOfSymbol(symbol: Symbol): Option[String] = {
+        // workaround for SI-7424
+        symbol.typeSignature
+        symbol.annotations.foreach(_.tpe)
 
-          symbol.annotations.headOption.map(_.scalaArgs.head).flatMap(annotationToName)
-        }
-
-        def annotationToName(tree: Tree): Option[String] =
-          tree match {
-            case Literal(Constant(name: String)) => Some(name)
-            case _ => None
-          }
-        val tableName = getNameOfSymbol(classDef.symbol).getOrElse(tName.toUpperCase())
-        val tableQName = QualifiedName.tableName(tableName)
-        val columns = classDef.symbol.typeSignature.member(nme.CONSTRUCTOR).typeSignature match {
-          case MethodType(params, resultType) => params map { param =>
-            val cName = param.name.toString()
-            val columnName = getNameOfSymbol(param).getOrElse(cName.toUpperCase())
-            val columnQName = QualifiedName.columnName(tableQName, columnName)
-            val tpe = param.typeSignature
-            Column(columnQName, tpe, cName, "case" + cName)
-          }
-        }
-        Table(tableQName, columns, Nil, tName + "Table", tName)
+        symbol.annotations.headOption.map(_.scalaArgs.head).flatMap(annotationToName)
       }
+
+      def annotationToName(tree: Tree): Option[String] =
+        tree match {
+          case Literal(Constant(name: String)) => Some(name)
+          case _ => None
+        }
+      val tName = symbol.name.toString()
+      val tableName = getNameOfSymbol(symbol).getOrElse(tName.toUpperCase())
+      val tableQName = QualifiedName.tableName(tableName)
+      val columns = symbol.typeSignature.member(nme.CONSTRUCTOR).typeSignature match {
+        case MethodType(params, resultType) => params map { param =>
+          val cName = param.name.toString()
+          val columnName = getNameOfSymbol(param).getOrElse(cName.toUpperCase())
+          val columnQName = QualifiedName.columnName(tableQName, columnName)
+          val tpe = param.typeSignature
+          Column(columnQName, tpe, cName, "case" + cName)
+        }
+      }
+      Table(tableQName, columns, Nil, tName + "Table", tName)
     }
+
+    def getTableFromCaseClassDef(classDef: ClassDef) = getTableFromSymbol(classDef.symbol)
 
     def getYYTableName(table: Table): String = "YY" + table.moduleName
 
@@ -135,18 +145,22 @@ trait YYTransformers {
       DefDef(Modifiers(Flag.IMPLICIT), newTermName("convImplicit" + yyTableName), List(), List(List(ValDef(Modifiers(PARAM), newTermName("x"), AppliedTypeTree(Ident(repTypeName), List(Ident(newTypeName(table.caseClassName)))), EmptyTree))), Ident(tableTypeName), body)
     }
 
+    def getTreesFromTable(table: Table): List[Tree] = {
+      val caseClassDef = createCaseClassRow(table)
+      val tableClassDef = createLiftedEmbeddingTableClass(table)
+      val tableModuleDef = createLiftedEmbeddingTableModule(table)
+      val yyTableClassDef = createYYTableClass(table)
+      val yyTableImplicitModule = createYYTableModule(table)
+      val yyRepToTableImplicit = createRepToTableImplicitDef(table)
+      List(caseClassDef, tableClassDef, tableModuleDef, yyTableClassDef, yyTableImplicitModule, yyRepToTableImplicit)
+    }
+
     def convertCaseClass(tree: Tree) = {
 
       tree match {
         case classDef @ ClassDef(mods, _, _, _) if isCaseClassDef(tree) => {
           val table = getTableFromCaseClassDef(classDef)
-          val caseClassDef = createCaseClassRow(table)
-          val tableClassDef = createLiftedEmbeddingTableClass(table)
-          val tableModuleDef = createLiftedEmbeddingTableModule(table)
-          val yyTableClassDef = createYYTableClass(table)
-          val yyTableImplicitModule = createYYTableModule(table)
-          val yyRepToTableImplicit = createRepToTableImplicitDef(table)
-          List(caseClassDef, tableClassDef, tableModuleDef, yyTableClassDef, yyTableImplicitModule, yyRepToTableImplicit)
+          getTreesFromTable(table)
         }
         case _ => Nil
       }
@@ -158,6 +172,39 @@ trait YYTransformers {
       }
       case _ => super.transform(tree)
     }
+    def transformBySymbols(tree: Tree, symbols: List[Symbol]): Tree = tree match {
+      case Block(stats, expr) => {
+        Block(symbols.flatMap((getTableFromSymbol _) andThen getTreesFromTable) ++ stats, expr)
+      }
+    }
+  }
+
+  object VirtualClassCollector {
+    def apply(tree: Tree): List[Symbol] = {
+      val vcc = new VirtualClassCollector()
+      vcc.traverse(tree)
+      virtualTraverserIsApplied = true
+      virtualSymbols = vcc.collected.toList
+      virtualSymbols
+    }
+  }
+
+  private final class VirtualClassCollector extends Traverser {
+
+    private[YYTransformers] val collected = new ArrayBuffer[Symbol]()
+
+    override def traverse(tree: Tree) = tree match {
+      case TypeApply(Select(shallowTable, TermName("getTable")), List(tpt)) if shallowTable.symbol.typeSignature =:= typeOf[Shallow.Table.type] => {
+        //      case TypeApply(Select(shallowTable, TermName("getTable")), List(tpt)) => {
+        //        println(shallowTable.symbol.typeSignature)
+        //        println(typeOf[Shallow.Table.type].typeSymbol)
+        //        println(shallowTable.symbol.equals(typeOf[Shallow.Table.type].typeSymbol))
+        //        println(new ClassVirtualization().getTableFromSymbol(tpt.symbol))
+        collected += tpt.symbol
+      }
+      case _ => super.traverse(tree)
+    }
+
   }
 }
 

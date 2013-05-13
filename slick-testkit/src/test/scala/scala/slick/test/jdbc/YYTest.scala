@@ -212,6 +212,81 @@ class YYTest {
       q1.toSeq
     }
     assertEquals("Query filter == map (_1, _2) of Table + Annotation", List((3, "three")), r7.toList)
+    //    val r8 = slickYYV {
+    //      case class Coffee(id: Int, name: String);
+    //      val tbl = Table.getTable[Coffee]
+    //      val q = Query.ofTable(tbl)
+    //      val q1 = q map (x => x)
+    //      q1.toSeq
+    //    }
+    //    assertEquals("Query map _1 of Virtualized Table", 4, r8.length)
+    YYUtils.closeSession
+  }
+  @Test
+  def virtualizationProTest {
+    initCoffeeTable()
+    import jdbcTypes._
+    import Shallow._
+    case class Coffee(id: Int, name: String);
+    val r1 = slickYYVP {
+      val tbl = Table.getTable[Coffee]
+      val q = Query.ofTable(tbl)
+      val q1 = q map (x => x.id)
+      q1.toSeq
+    }
+    assertEquals("Query map _1 of Virtualized++ Table", 4, r1.length)
+    val r2 = slickYYVP {
+      val tbl = Table.getTable[Coffee]
+      val q = Query.ofTable(tbl)
+      val q1 = q map (x => (x.id, x.name))
+      q1.toSeq
+    }
+    assertEquals("Query map (_1, _2) of Virtualized++ Table", List((1, "one"), (2, "two"), (3, "three"), (10, "ten")), r2.toList)
+    val r3 = slickYYVP {
+      val tbl = Table.getTable[Coffee]
+      val q = Query.ofTable(tbl)
+      val q1 = q map (x => (x.id, if (x.id < 3) "Low" else x.name))
+      q1.toSeq
+    }
+    assertEquals("Query map (_1, _2) of Virtualized++ Table + if", List((1, "Low"), (2, "Low"), (3, "three"), (10, "ten")), r3.toList)
+    @Entity("COFFEE") case class Coff(@Entity("ID") idNumber: Int, name: String);
+    val r4 = slickYYVP {
+      val tbl = Table.getTable[Coff]
+      val q = Query.ofTable(tbl)
+      val q1 = q map (x => (x.idNumber, x.name))
+      q1.toSeq
+    }
+    assertEquals("Query map (_1, _2) of Virtualized++ Table + Annotation", List((1, "one"), (2, "two"), (3, "three"), (10, "ten")), r4.toList)
+    val r5 = slickYYVP {
+      val tbl = Table.getTable[Coff]
+      val q = Query.ofTable(tbl)
+      val q1 = q map (x => x.idNumber) filter (x => x < 3)
+      q1.toSeq
+    }
+    assertEquals("Query map _1 filter of Virtualized++ Table + Annotation", List(1, 2), r5.toList)
+    val r6 = slickYYVP {
+      val tbl = Table.getTable[Coff]
+      val q = Query.ofTable(tbl)
+      val q1 = q map (x => (x.idNumber, x.name)) filter (x => x._1 < 3)
+      q1.toSeq
+    }
+    assertEquals("Query map (_1, _2) filter of Virtualized++ Table + Annotation", List((1, "one"), (2, "two")), r6.toList)
+    @Entity("COFFEE") case class Coffn(@Entity("ID") idNumber: Int, @Entity("NAME") _2: String);
+    val r7 = slickYYVP {
+      val tbl = Table.getTable[Coffn]
+      val q = Query.ofTable(tbl)
+      val q1 = q filter (x => x.idNumber == 3) map (x => (x.idNumber, x._2))
+      q1.toSeq
+    }
+    assertEquals("Query filter == map (_1, _2) of Virtualized++ Table + Annotation", List((3, "three")), r7.toList)
+    //    val r8 = slickYYVP {
+    //      val tbl = Table.getTable[Coffee]
+    //      val q = Query.ofTable(tbl)
+    //      val q1 = q map (x => x)
+    //      q1.toSeq
+    //    }
+    //    assertEquals("Query identity map of Virtualized++ Table head", Coffee(1, "one"), r8.head)
+    //    assertEquals("Query identity map of Virtualized++ Table", List(Coffee(1, "one"), Coffee(2, "two"), Coffee(3, "three"), Coffee(10, "ten")), r8.toList)
     YYUtils.closeSession
   }
   @Test
