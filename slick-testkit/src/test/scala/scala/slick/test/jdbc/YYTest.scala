@@ -569,6 +569,71 @@ class YYTest {
     DatabaseHandler.closeSession
   }
 
+  @Test
+  def columnOpsTest {
+    initCoffeeTable()
+    import jdbcTypes._
+    import Shallow._
+    case class Coffee(id: Int, name: String);
+    val r1 = slickYYVP {
+      val tbl = Table.getTable[Coffee]
+      val q = Query.ofTable(tbl)
+      val q1 = q map (x => x.id + 2)
+      q1.toSeq
+    }
+    assertEquals("numericOps +", List(3, 4, 5, 12), r1.toList)
+    val r2 = slickYYVP {
+      val tbl = Table.getTable[Coffee]
+      val q = Query.ofTable(tbl)
+      val q1 = q map (x => x.id * 2 % 3)
+      q1.toSeq
+    }
+    assertEquals("numericOps * %", List(2, 1, 0, 2), r2.toList)
+    val r3 = slickYYVP {
+      val tbl = Table.getTable[Coffee]
+      val q = Query.ofTable(tbl)
+      val q1 = q map (x => ((x.id - 5).abs, (x.id).toDegrees))
+      q1.toSeq
+    }
+    assertEquals("numericOps (x - 5).abs, toDegrees", List((4, 57), (3, 115), (2, 172), (5, 573)), r3.toList)
+    val r4 = slickYYVP {
+      val tbl = Table.getTable[Coffee]
+      val q = Query.ofTable(tbl)
+      val q1 = q map (x => (x.name + "!"))
+      q1.toSeq
+    }
+    assertEquals("stringOps +", List("one!", "two!", "three!", "ten!"), r4.toList)
+    val r5 = slickYYVP {
+      val tbl = Table.getTable[Coffee]
+      val q = Query.ofTable(tbl)
+      val q1 = q map (x => (x.name ++ "!").toUpperCase)
+      q1.toSeq
+    }
+    assertEquals("stringOps ++ toUpperCase", List("ONE!", "TWO!", "THREE!", "TEN!"), r5.toList)
+    val r6 = slickYYVP {
+      val tbl = Table.getTable[Coffee]
+      val q = Query.ofTable(tbl)
+      val q1 = q map (x => if (x.name like "%e") x.name.toUpperCase else ("  " + x.name + "! ").trim)
+      q1.toSeq
+    }
+    assertEquals("stringOps if (like %%e) toUpperCase else ( + + ).trim", List("ONE", "two!", "THREE", "ten!"), r6.toList)
+    val r7 = slickYYVP {
+      val tbl = Table.getTable[Coffee]
+      val q = Query.ofTable(tbl)
+      val q1 = q map (x => if (x.name like "%e") ("  " + x.name + "!  ").ltrim else ("  " + x.name + "!  ").rtrim)
+      q1.toSeq
+    }
+    assertEquals("stringOps if (like %%e) ( + + ).ltrim else ( + + ).rtrim", List("one!  ", "  two!", "three!  ", "  ten!"), r7.toList)
+    val r8 = slickYYVP {
+      val tbl = Table.getTable[Coffee]
+      val q = Query.ofTable(tbl)
+      val q1 = q map (x => if (x.name endsWith "e") x.name.toUpperCase else ("  " + x.name + "! ").trim)
+      q1.toSeq
+    }
+    assertEquals("stringOps if (endsWith 'e') toUpperCase else ( + + ).trim", List("ONE", "two!", "THREE", "ten!"), r8.toList)
+    DatabaseHandler.closeSession
+  }
+
   def initCoffeeTable() {
     import scala.slick.driver.H2Driver.simple._
 

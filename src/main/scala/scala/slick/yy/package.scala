@@ -16,6 +16,7 @@ package object yy {
   def slickYYV[T](block: => T): T = macro implementations.slickYYV[T]
   def slickYYVP[T](block: => T): T = macro implementations.slickYYVP[T]
   def slickYYVDebug[T](block: => T): T = macro implementations.slickYYVDebug[T]
+  def slickYYVPDebug[T](block: => T): T = macro implementations.slickYYVPDebug[T]
 
   object implementations {
     def slickYY[T](c: Context)(block: c.Expr[T]): c.Expr[T] =
@@ -92,6 +93,22 @@ package object yy {
       new YYTransformer[c.type, T](c, "scala.slick.yy.SlickYinYang",
         shallow = false,
         debug = false,
+        rep = false,
+        slickHack = true,
+        preprocess = ClassVirtualization)(block)
+    }
+    def slickYYVPDebug[T](c: Context)(block: c.Expr[T]): c.Expr[T] = {
+      //      println(c.universe.showRaw(block))
+      val yyTranformers = new {
+        val universe: c.universe.type = c.universe
+        val mirror = c.mirror
+      } with YYTransformers
+      yyTranformers.VirtualClassCollector(block.tree)
+      val ClassVirtualization = yyTranformers.ClassVirtualization.asInstanceOf[(Context#Tree => Context#Tree)]
+
+      new YYTransformer[c.type, T](c, "scala.slick.yy.SlickYinYang",
+        shallow = false,
+        debug = true,
         rep = false,
         slickHack = true,
         preprocess = ClassVirtualization)(block)

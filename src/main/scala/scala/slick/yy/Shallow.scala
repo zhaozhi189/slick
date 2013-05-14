@@ -25,6 +25,22 @@ object Shallow {
     def toSeqImplicit: (JdbcDriver => JdbcBackend#Session => Seq[T]) = ???
   }
 
+  implicit def stringWrapper(value: String): ColumnOps[String] =
+    new ColumnOps(value)
+
+  implicit class ColumnOps[T](value: T) {
+    //    def abs: T = ??? // there's no need for it, intWrapper is handling it
+    def ceil: T = ???
+    def floor: T = ???
+    def sign: T = ???
+    def toDegrees: T = ???
+    def toRadians: T = ???
+    def ++(o: String): String = ???
+    def like(o: String): Boolean = ???
+    def ltrim: String = ???
+    def rtrim: String = ???
+  }
+
   object Query {
     def ofTable[T](i: Table[T]): Query[T] = ???
     def apply[T](i: T): Query[T] = ???

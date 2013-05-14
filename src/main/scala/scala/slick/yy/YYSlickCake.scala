@@ -21,7 +21,8 @@ trait YYSlickCake {
   type Boolean = YYColumn[scala.Boolean]
   type TableRow = scala.slick.yy.YYTableRow
   type YYTableRow = Table[TableRow] // w/o it: "type YYTableRow is not a member of CAKE"
-  type Invoker[T] = Shallow.Invoker[T]
+  type ColumnOps[T] = YYColumn[T]
+  type Invoker[T] = scala.slick.yy.Shallow.Invoker[T]
 
   //order stuff
   type Ordering[T] = YYOrdering[T]
@@ -42,6 +43,17 @@ trait YYSlickCake {
     def apply[T](v: YYRep[T]): YYQuery[T] = YYQuery.apply(v)
     def ofTable[T](t: YYTable[T]): YYQuery[T] = YYQuery.apply(t)
   }
+
+  object Shallow {
+    object ColumnOps {
+      def apply[T](value: YYColumn[T]): YYColumn[T] = value
+    }
+    def stringWrapper(value: String): String = value
+  }
+
+  def intWrapper(value: Int): Int = value
+
+  //  def augmentString(value: String): String = value
 
   def __ifThenElse[T: BaseTypedType](c: => Boolean, t: Column[T], e: Column[T]): Column[T] = {
     val condition = Case.If(c.underlying)

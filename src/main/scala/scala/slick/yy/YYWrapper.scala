@@ -30,6 +30,9 @@ import scala.slick.driver.JdbcDriver
 import scala.slick.driver.H2Driver
 import scala.slick.lifted.{ Ordered => LOrdered }
 import scala.slick.jdbc.UnitInvoker
+import scala.slick.lifted.NumericColumnExtensionMethods
+import scala.slick.lifted.StringColumnExtensionMethods
+import scala.slick.SlickException
 
 trait YYWraper[UT] {
   type NonRep = UT
@@ -60,12 +63,13 @@ object YYValue {
   }
 }
 
-trait YYColumn[T] extends ColumnOps[T] with YYRep[T] {
+trait YYColumn[T] extends ColumnExtensionOps[T] with ColumnNumericExtensionOps[T]
+  with ColumnStringExtensionOps[T] with YYRep[T] {
   val column: Column[T]
   override def underlying = column
-  def extendedColumn = new PlainColumnExtensionMethods(column)
   def n = Node(column)
   implicit def om[T2, TR] = OptionMapper2.plain.asInstanceOf[OptionMapper2[T, T, TR, T, T2, TR]]
+  def getValue: T = throw new SlickException("Accessing YYColumn value!")
 }
 
 // order stuff
@@ -140,25 +144,60 @@ object YYTable {
 class YYConstColumn[T](val constColumn: ConstColumn[T]) extends YYColumn[T] {
   override val column = constColumn
   val value = constColumn.value
+  override def getValue: T = value
 }
 
 object YYConstColumn {
   def apply[T: TypedType](v: T): YYColumn[T] = new YYConstColumn(ConstColumn[T](v))
 }
 
-trait ColumnOps[T] { self: YYColumn[T] =>
+trait ColumnExtensionOps[T] { self: YYColumn[T] =>
+
+  def extendedColumn = new PlainColumnExtensionMethods(column)
 
   def isNull: YYColumn[Boolean] = YYColumn(extendedColumn.isNull)
   def isNotNull: YYColumn[Boolean] = YYColumn(extendedColumn.isNotNull)
 
-  def is[T2](e: YYColumn[T2]): YYColumn[Boolean] =
-    YYColumn(extendedColumn is e.column)
-  def ===[T2](e: YYColumn[T2]): YYColumn[Boolean] =
-    YYColumn(extendedColumn === e.column)
-  def >[T2](e: YYColumn[T2]): YYColumn[Boolean] =
-    YYColumn(extendedColumn > e.column)
-  def <[T2](e: YYColumn[T2]): YYColumn[Boolean] =
-    YYColumn(extendedColumn < e.column)
+  def is[T2](e: YYColumn[T2]): YYColumn[Boolean] = YYColumn(extendedColumn is e.column)
+  def ===[T2](e: YYColumn[T2]): YYColumn[Boolean] = YYColumn(extendedColumn === e.column)
+  def >[T2](e: YYColumn[T2]): YYColumn[Boolean] = YYColumn(extendedColumn > e.column)
+  def <[T2](e: YYColumn[T2]): YYColumn[Boolean] = YYColumn(extendedColumn < e.column)
+}
+trait ColumnNumericExtensionOps[T] { self: YYColumn[T] =>
+
+  def numericColumn = new NumericColumnExtensionMethods[T, T](column)
+  // FIXME add option mapper!
+  def +(e: YYColumn[T]): YYColumn[T] = {
+    if (e.column.tpe.equals(JdbcDriver.columnTypes.stringJdbcType))
+      (this ++ e.asInstanceOf[YYColumn[String]]).asInstanceOf[YYColumn[T]]
+    else
+      YYColumn(numericColumn + e.column)
+  }
+  def -(e: YYColumn[T]): YYColumn[T] = YYColumn(numericColumn - e.column)
+  def *(e: YYColumn[T]): YYColumn[T] = YYColumn(numericColumn * e.column)
+  def /(e: YYColumn[T]): YYColumn[T] = YYColumn(numericColumn / e.column)
+  def %(e: YYColumn[T]): YYColumn[T] = YYColumn(numericColumn % e.column)
+  def abs = YYColumn(numericColumn.abs)
+  def ceil = YYColumn(numericColumn.ceil)
+  def floor = YYColumn(numericColumn.floor)
+  def sign = YYColumn(numericColumn.sign)
+  def toDegrees = YYColumn(numericColumn.toDegrees)
+  def toRadians = YYColumn(numericColumn.toRadians)
+}
+trait ColumnStringExtensionOps[T] { self: YYColumn[T] =>
+
+  def stringColumn = new StringColumnExtensionMethods[String](column.asInstanceOf[Column[String]])
+  // FIXME add option mapper!
+  def length() = YYColumn(stringColumn.length)
+  def like(e: YYColumn[String], esc: Char = '\0') = YYColumn(stringColumn.like(e.column, esc))
+  def ++(e: YYColumn[String]) = YYColumn(stringColumn ++ e.column)
+  def startsWith(s: YYColumn[String]) = YYColumn(stringColumn.startsWith(s.getValue))
+  def endsWith(s: YYColumn[String]) = YYColumn(stringColumn.endsWith(s.getValue))
+  def toUpperCase() = YYColumn(stringColumn.toUpperCase)
+  def toLowerCase() = YYColumn(stringColumn.toLowerCase)
+  def ltrim() = YYColumn(stringColumn.ltrim)
+  def rtrim() = YYColumn(stringColumn.rtrim)
+  def trim() = YYColumn(stringColumn.trim)
 }
 
 object YYShape {
@@ -178,8 +217,8 @@ trait YYQuery[U] extends QueryOps[U] with YYRep[Seq[U]] {
     def apply(value: Rep[Boolean]) = value.asInstanceOf[Column[Boolean]]
   }
 
-//  implicit def getSession: JdbcBackend#Session =
-//    YYUtils.provideSession
+  //  implicit def getSession: JdbcBackend#Session =
+  //    YYUtils.provideSession
 
   private def invoker(implicit driver: JdbcDriver): UnitInvoker[U] =
     driver.Implicit.queryToQueryInvoker(query)
@@ -281,12 +320,12 @@ trait QueryOps[T] { self: YYQuery[T] =>
 
   // ugly!!!
   def take(i: YYColumn[Int]): YYQuery[T] = {
-    val v = i.asInstanceOf[YYConstColumn[Int]].constColumn.value
+    val v = i.getValue
     YYQuery.fromQuery(query.take(v))
   }
 
   def drop(i: YYColumn[Int]): YYQuery[T] = {
-    val v = i.asInstanceOf[YYConstColumn[Int]].constColumn.value
+    val v = i.getValue
     YYQuery.fromQuery(query.drop(v))
   }
 

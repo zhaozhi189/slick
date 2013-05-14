@@ -21,7 +21,7 @@ object YYTest extends YYSlickCake {
 
   def apply() {
     implicit val driver = H2Driver
-
+    
     Database.forURL("jdbc:h2:mem:test1", driver = "org.h2.Driver") withSession {
       (TableA.ddl).create
 
@@ -31,6 +31,7 @@ object YYTest extends YYSlickCake {
       TableA.insert((20, 3))
       
       TableA.map( x => x.id + 1)
+//      TableA.map( x => x.name )
 
       val yt = YYTableA
       val yq = YYQuery(yt)
