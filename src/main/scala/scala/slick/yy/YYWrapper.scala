@@ -33,6 +33,7 @@ import scala.slick.jdbc.UnitInvoker
 import scala.slick.lifted.NumericColumnExtensionMethods
 import scala.slick.lifted.StringColumnExtensionMethods
 import scala.slick.SlickException
+import scala.slick.lifted.BooleanColumnExtensionMethods
 
 trait YYWraper[UT] {
   type NonRep = UT
@@ -64,7 +65,7 @@ object YYValue {
 }
 
 trait YYColumn[T] extends ColumnExtensionOps[T] with ColumnNumericExtensionOps[T]
-  with ColumnStringExtensionOps[T] with YYRep[T] {
+  with ColumnStringExtensionOps[T] with ColumnBooleanExtensionOps[T] with YYRep[T] {
   val column: Column[T]
   override def underlying = column
   def n = Node(column)
@@ -117,7 +118,11 @@ object YYOrdering {
 
   // FIXME generalize
   def Tuple2[T1, T2](ord1: YYOrdering[T1], ord2: YYOrdering[T2]): YYOrdering[(T1, T2)] =
-    fromOrdering(Ordering.Tuple2(ord1.ord, ord2.ord))
+    new YYOrdering(Ordering.Tuple2(ord1.ord, ord2.ord)) {
+      override def toOrdered(x: Rep[(T1, T2)]): LOrdered = new LOrdered(super.toOrdered(x).columns.zip(List(ord1, ord2)).map {
+        case ((n, ord), yord) => (n, if (yord.isReverse) ord.reverse else ord)
+      })
+    }
 }
 
 object YYColumn {
@@ -165,7 +170,7 @@ trait ColumnExtensionOps[T] { self: YYColumn[T] =>
 }
 trait ColumnNumericExtensionOps[T] { self: YYColumn[T] =>
 
-  def numericColumn = new NumericColumnExtensionMethods[T, T](column)
+  lazy val numericColumn = new NumericColumnExtensionMethods[T, T](column)
   // FIXME add option mapper!
   def +(e: YYColumn[T]): YYColumn[T] = {
     if (e.column.tpe.equals(JdbcDriver.columnTypes.stringJdbcType))
@@ -186,7 +191,7 @@ trait ColumnNumericExtensionOps[T] { self: YYColumn[T] =>
 }
 trait ColumnStringExtensionOps[T] { self: YYColumn[T] =>
 
-  def stringColumn = new StringColumnExtensionMethods[String](column.asInstanceOf[Column[String]])
+  lazy val stringColumn = new StringColumnExtensionMethods[String](column.asInstanceOf[Column[String]])
   // FIXME add option mapper!
   def length() = YYColumn(stringColumn.length)
   def like(e: YYColumn[String], esc: Char = '\0') = YYColumn(stringColumn.like(e.column, esc))
@@ -198,6 +203,14 @@ trait ColumnStringExtensionOps[T] { self: YYColumn[T] =>
   def ltrim() = YYColumn(stringColumn.ltrim)
   def rtrim() = YYColumn(stringColumn.rtrim)
   def trim() = YYColumn(stringColumn.trim)
+}
+
+trait ColumnBooleanExtensionOps[T] { self: YYColumn[T] =>
+  lazy val booleanColumn = new BooleanColumnExtensionMethods[Boolean](column.asInstanceOf[Column[Boolean]])
+
+  def &&(b: YYColumn[Boolean]) = YYColumn(booleanColumn && b.column)
+  def ||(b: YYColumn[Boolean]) = YYColumn(booleanColumn || b.column)
+  def unary_! = YYColumn(!booleanColumn)
 }
 
 object YYShape {
@@ -329,8 +342,8 @@ trait QueryOps[T] { self: YYQuery[T] =>
     YYQuery.fromQuery(query.drop(v))
   }
 
-  def length: YYColumn[Int] =
-    YYColumn(query.length)
+  def length: YYQuery[Int] =
+    YYQuery(YYColumn(query.length))
 }
 
 sealed trait YYProjection[T <: Product] extends YYRep[T] with Product {

@@ -13,9 +13,11 @@ object Shallow {
   }
 
   class Query[T] {
+    def flatMap[S](projection: T => Query[S]): Query[S] = ???
     def map[S](projection: T => S): Query[S] = ???
     def filter(projection: T => Boolean): Query[T] = ???
     def withFilter(projection: T => Boolean): Query[T] = ???
+    def length: Query[Int] = ???
     def sortBy[S](projection: T => S)(implicit ord: Ordering[S]): Query[T] = ???
     def sorted(implicit ord: Ordering[T]): Query[T] = ???
     def take(i: Int): Query[T] = ???

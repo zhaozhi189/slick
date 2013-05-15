@@ -185,7 +185,7 @@ trait YYTransformers {
       val vcc = new VirtualClassCollector()
       vcc.traverse(tree)
       virtualTraverserIsApplied = true
-      virtualSymbols = vcc.collected.toList
+      virtualSymbols = vcc.collected.distinct.toList
       virtualSymbols
     }
   }
