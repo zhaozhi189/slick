@@ -39,6 +39,10 @@ trait YYSlickCake {
   implicit def fixClosureContraVariance[T, U <: YYRep[T], S](x: U => S) =
     x.asInstanceOf[YYRep[T] => S]
 
+  object Queryable {
+    def apply[T](implicit t: YYTable[T]): Query[T] = YYQuery.apply(t)
+  }
+
   object Query {
     def apply[T](v: YYRep[T]): YYQuery[T] = YYQuery.apply(v)
     def ofTable[T](t: YYTable[T]): YYQuery[T] = YYQuery.apply(t)

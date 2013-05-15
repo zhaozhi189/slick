@@ -371,7 +371,7 @@ object YYUtils {
   }
 
   // FIXME hack!
-  val conn = H2Driver.simple.Database.forURL("jdbc:h2:mem:test1", driver = "org.h2.Driver")
+  val conn = H2Driver.simple.Database.forURL("jdbc:h2:mem:test14", driver = "org.h2.Driver")
   private var session = conn.createSession
   def provideSession: JdbcDriver.Backend#Session = session
   def closeSession {

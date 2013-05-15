@@ -7,6 +7,8 @@ import scala.slick.jdbc.JdbcBackend
 import scala.slick.driver.JdbcDriver
 
 package object yy {
+  def slickI[T](block: JdbcDriver => JdbcBackend#Session => T)(implicit driver: JdbcDriver, session: JdbcBackend#Session): T = 
+    macro implementations.slickYYVPImplicit[T]
   //  def slickYYImplicit[T](s: JdbcBackend#Session)(block: => T): T = macro implementations.slickYYImplicit[T]
   def slickYYImplicit[T](block: JdbcDriver => JdbcBackend#Session => T)(implicit driver: JdbcDriver, session: JdbcBackend#Session): T = //    val res = slickYY(block)
   //    res(driver)(session)
@@ -35,7 +37,29 @@ package object yy {
         c.universe.reify {
           res.splice(driver.splice)(session.splice)
         }
+
       }
+
+    def slickYYVPImplicit[T](c: Context)(block: c.Expr[(JdbcDriver => JdbcBackend#Session => T)])(driver: c.Expr[JdbcDriver], session: c.Expr[JdbcBackend#Session]): c.Expr[T] = {
+
+      val yyTranformers = new {
+        val universe: c.universe.type = c.universe
+        val mirror = c.mirror
+      } with YYTransformers
+      yyTranformers.VirtualClassCollector(block.tree)
+      val ClassVirtualization = yyTranformers.ClassVirtualization.asInstanceOf[(Context#Tree => Context#Tree)]
+
+      val res = new YYTransformer[c.type, (JdbcDriver => JdbcBackend#Session => T)](c, "scala.slick.yy.SlickYinYang",
+        shallow = false,
+        debug = false,
+        rep = false,
+        slickHack = true,
+        preprocess = ClassVirtualization)(block)
+      c.universe.reify {
+        res.splice(driver.splice)(session.splice)
+      }
+
+    }
 
     //    def slickYYImplicit[T](c: Context)(s: c.Expr[JdbcBackend#Session])(block: c.Expr[T]): c.Expr[T] = {
     //      import c.universe._

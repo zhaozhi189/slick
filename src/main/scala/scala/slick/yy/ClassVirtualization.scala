@@ -176,6 +176,7 @@ trait YYTransformers {
       case Block(stats, expr) => {
         Block(symbols.flatMap((getTableFromSymbol _) andThen getTreesFromTable) ++ stats, expr)
       }
+      case expr => Block(symbols.flatMap((getTableFromSymbol _) andThen getTreesFromTable), expr)
     }
   }
 
@@ -200,6 +201,9 @@ trait YYTransformers {
         //        println(typeOf[Shallow.Table.type].typeSymbol)
         //        println(shallowTable.symbol.equals(typeOf[Shallow.Table.type].typeSymbol))
         //        println(new ClassVirtualization().getTableFromSymbol(tpt.symbol))
+        collected += tpt.symbol
+      }
+      case TypeApply(Select(shallowQueryable, TermName("apply")), List(tpt)) if shallowQueryable.symbol.typeSignature =:= typeOf[Shallow.Queryable.type] => {
         collected += tpt.symbol
       }
       case _ => super.traverse(tree)

@@ -8,6 +8,10 @@ object Shallow {
 
   type Invoker[T] = (JdbcDriver => UnitInvoker[T])
 
+  object Queryable {
+    def apply[T]: Query[T] = ???
+  }
+
   class Query[T] {
     def map[S](projection: T => S): Query[S] = ???
     def filter(projection: T => Boolean): Query[T] = ???
