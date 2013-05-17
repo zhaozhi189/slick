@@ -34,6 +34,8 @@ import scala.slick.lifted.NumericColumnExtensionMethods
 import scala.slick.lifted.StringColumnExtensionMethods
 import scala.slick.SlickException
 import scala.slick.lifted.BooleanColumnExtensionMethods
+import scala.slick.profile.BasicDriver
+import scala.slick.driver.JdbcProfile
 
 trait YYWraper[UT] {
   type NonRep = UT
@@ -233,12 +235,12 @@ trait YYQuery[U] extends QueryOps[U] with YYRep[Seq[U]] {
   //  implicit def getSession: JdbcBackend#Session =
   //    YYUtils.provideSession
 
-  private def invoker(implicit driver: JdbcDriver): UnitInvoker[U] =
+  private def invoker(implicit driver: JdbcProfile): UnitInvoker[U] =
     driver.Implicit.queryToQueryInvoker(query)
 
-  def first(implicit driver: JdbcDriver, session: JdbcBackend#Session): U =
+  def first(implicit driver: JdbcProfile, session: JdbcBackend#Session): U =
     invoker.first
-  def toSeq(implicit driver: JdbcDriver, session: JdbcBackend#Session): Seq[U] =
+  def toSeq(implicit driver: JdbcProfile, session: JdbcBackend#Session): Seq[U] =
     invoker.list.toSeq
 
   def firstImplicit: (JdbcDriver => JdbcBackend#Session => U) = (driver: JdbcDriver) =>
@@ -386,7 +388,8 @@ object YYUtils {
   // FIXME hack!
   val conn = H2Driver.simple.Database.forURL("jdbc:h2:mem:test14", driver = "org.h2.Driver")
   private var session = conn.createSession
-  def provideSession: JdbcDriver.Backend#Session = session
+  implicit def h2Session = session
+  def provideSession: JdbcBackend#Session = session
   def closeSession {
     session.close
     session = conn.createSession

@@ -13,6 +13,7 @@ class YYTest {
 
   @Test def simpleTest() {
     import Shallow._
+    import Shallow.TestH2._
     val y = 5.3
     val r1 = slickYY {
       val q = Query(y)
@@ -49,10 +50,10 @@ class YYTest {
     }
     assertEquals("Query filter + Column == (2)", true, r7.head)
   }
-
   @Test
   def tuple2Test() {
     import Shallow._
+    import Shallow.TestH2._
     val r1 = slickYY {
       val x = (1, 2)
       val q = Query(x)
@@ -93,6 +94,7 @@ class YYTest {
 
   @Test def testTableTest() {
     import Shallow._
+    import Shallow.TestH2._
     initTable()
     val r1 = slickYY {
       val tbl = Table.test()
@@ -181,12 +183,12 @@ class YYTest {
 
     DatabaseHandler.closeSession
   }
-
   @Test
   def virtualizationTest {
     initCoffeeTable()
     import jdbcTypes._
     import Shallow._
+    import Shallow.TestH2._
     val r1 = slickYYV {
       case class Coffee(id: Int, name: String);
       val tbl = Table.getTable[Coffee]
@@ -259,6 +261,7 @@ class YYTest {
     initCoffeeTable()
     import jdbcTypes._
     import Shallow._
+    import Shallow.TestH2._
     case class Coffee(id: Int, name: String);
     val r1 = slickYYVP {
       val tbl = Table.getTable[Coffee]
@@ -327,6 +330,7 @@ class YYTest {
     initSortTable()
     import jdbcTypes._
     import Shallow._
+    import Shallow.TestH2._
     val r1 = slickYYV {
       case class Coffee(id: Int, name: String);
       val tbl = Table.getTable[Coffee]
@@ -441,6 +445,7 @@ class YYTest {
     initCoffeeTable()
     import jdbcTypes._
     import Shallow._
+    import Shallow.TestH2._
     val r1 = slickYYV {
       case class Coffee(id: Int, name: String);
       val tbl = Table.getTable[Coffee]
@@ -499,7 +504,6 @@ class YYTest {
     assertEquals("Query forComprehension filter == map (_1, _2) of Table + Annotation", List((3, "three")), r7.toList)
     DatabaseHandler.closeSession
   }
-
   @Test
   def virtualizationProInvokerTest {
     initCoffeeTable()
@@ -574,6 +578,7 @@ class YYTest {
     initCoffeeTable()
     import jdbcTypes._
     import Shallow._
+    import Shallow.TestH2._
     case class Coffee(id: Int, name: String);
     val r1 = slickYYVP {
       val tbl = Table.getTable[Coffee]

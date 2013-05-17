@@ -3,6 +3,7 @@ package scala.slick.yy
 import scala.slick.driver.JdbcDriver
 import scala.slick.jdbc.UnitInvoker
 import scala.slick.jdbc.JdbcBackend
+import scala.slick.driver.H2Driver
 
 object Shallow {
 
@@ -65,4 +66,9 @@ object Shallow {
   type TableRow = YYSlickCake#TableRow
 
   type TableARow = YYSlickCake#TableARow
+
+  object TestH2 {
+    implicit val h2Driver = H2Driver
+    implicit def h2Session = YYUtils.h2Session
+  }
 }
