@@ -1,5 +1,6 @@
 package scala.slick.yy
 
+import scala.language.implicitConversions
 import scala.slick.driver.JdbcDriver
 import scala.slick.jdbc.UnitInvoker
 import scala.slick.jdbc.JdbcBackend
@@ -24,8 +25,6 @@ object Shallow {
     def take(i: Int): Query[T] = ???
     def drop(i: Int): Query[T] = ???
     def toSeq: Seq[T] = ???
-    //    def toSeq(implicit driver: JdbcDriver): Seq[T] = ???
-    //    def toSeqSession(implicit driver: JdbcDriver): Seq[T] = ???
     def first: T = ???
     def getInvoker: Invoker[T] = ???
     def firstImplicit: (JdbcDriver => JdbcBackend#Session => T) = ???
@@ -58,14 +57,8 @@ object Shallow {
   }
 
   object Table {
-    //    def test(): Table[TableRow] = ???
-    //    def test2(): Table[TableARow] = ???
     def getTable[S]: Table[S] = ???
   }
-
-  //  type TableRow = YYSlickCake#TableRow
-  //
-  //  type TableARow = YYSlickCake#TableARow
 
   object TestH2 {
     implicit val h2Driver = H2Driver

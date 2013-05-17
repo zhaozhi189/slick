@@ -2,6 +2,7 @@ package scala.slick
 
 import ch.epfl.lamp.yinyang._
 import scala.language.experimental.macros
+import scala.language.existentials
 import scala.reflect.macros.Context
 import scala.slick.jdbc.JdbcBackend
 import scala.slick.driver.JdbcDriver

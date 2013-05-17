@@ -232,9 +232,6 @@ trait YYQuery[U] extends QueryOps[U] with YYRep[Seq[U]] {
     def apply(value: Rep[Boolean]) = value.asInstanceOf[Column[Boolean]]
   }
 
-  //  implicit def getSession: JdbcBackend#Session =
-  //    YYUtils.provideSession
-
   private def invoker(implicit driver: JdbcProfile): UnitInvoker[U] =
     driver.Implicit.queryToQueryInvoker(query)
 
@@ -252,18 +249,6 @@ trait YYQuery[U] extends QueryOps[U] with YYRep[Seq[U]] {
 
   def getInvoker: (JdbcDriver => UnitInvoker[U]) = (driver: JdbcDriver) =>
     invoker(driver)
-
-  //  def first(driver: JdbcDriver): U =
-  //    driver.Implicit.queryToQueryInvoker(query).first
-  //  def toSeq(driver: JdbcDriver): Seq[U] =
-  //    driver.Implicit.queryToQueryInvoker(query).list.toSeq
-  //
-  //  def firstSession(driver: JdbcDriver): (JdbcBackend#Session => U) = (s: JdbcBackend#Session) => {
-  //    driver.Implicit.queryToQueryInvoker(query).first()(s)
-  //  }
-  //  def toSeqSession(driver: JdbcDriver): (JdbcBackend#Session => Seq[U]) = (s: JdbcBackend#Session) => {
-  //    driver.Implicit.queryToQueryInvoker(query).list()(s)
-  //  }
 }
 
 object YYQuery {

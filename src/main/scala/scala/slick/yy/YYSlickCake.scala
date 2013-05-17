@@ -23,8 +23,6 @@ trait YYSlickCake extends YYSlickLowPriorityImplicits {
   type Double = YYColumn[scala.Double]
   type String = YYColumn[Predef.String]
   type Boolean = YYColumn[scala.Boolean]
-  //  type TableRow = scala.slick.yy.YYTableRow
-  //  type YYTableRow = Table[TableRow] // w/o it: "type YYTableRow is not a member of CAKE"
   type ColumnOps[T] = YYColumn[T]
   type Invoker[T] = scala.slick.yy.Shallow.Invoker[T]
 
@@ -70,17 +68,7 @@ trait YYSlickCake extends YYSlickLowPriorityImplicits {
     def apply[T1, T2](_1: Column[T1], _2: Column[T2]) = YYProjection.fromYY(_1, _2)
   }
 
-  // testing stuffs
-
-  //  type TableARow = scala.slick.yy.YYTableARow
-  //  type YYTableARow = Table[TableARow] // w/o it: "type YYTableARow is not a member of CAKE"
-  //
-  //  implicit def convertYYTableARow(t: Table[TableARow]) = new TestTable.YYTableA(t.underlying.asInstanceOf[TestTable.TableA])
-  //  implicit object implicitYYTableA extends TestTable.YYTableA(TestTable.TableA)
-
   object Table {
-    //    def test(): Table[TableRow] = TestTable.YYTableA.asInstanceOf[Table[TableRow]]
-    //    def test2(): Table[TableARow] = TestTable.YYTableA
     def getTable[S](implicit mapping: Table[S]): Table[S] = mapping
   }
 
@@ -95,31 +83,3 @@ trait YYSlickLowPriorityImplicits {
   // The reason of generality of this type is the same as the above one.
   implicit def dummySession: JdbcBackend#Session = throw new SlickException("You forgot to provide implicit session for YY block!")
 }
-
-object TestTable {
-  import scala.slick.driver.H2Driver.simple
-  import scala.slick.driver.H2Driver.Implicit._
-
-  class TableA extends simple.Table[YYTableARow]("TABLE_A") {
-    def id = column[SInt]("A_ID")
-    def grade = column[SInt]("A_GRADE")
-    def * = id ~ grade <> (YYTableARow, YYTableARow.unapply _)
-  }
-  object TableA extends TableA
-
-  implicit def convertTuple2ToTableARow(tup2: (scala.Int, scala.Int)): YYTableARow =
-    YYTableARow(tup2._1, tup2._2)
-
-  class YYTableA(val table: TableA) extends YYTable[YYTableARow] {
-
-    def id = YYColumn(table.id)
-    def grade = YYColumn(table.grade)
-    override def toString = "YYTableA"
-  }
-
-  object YYTableA extends YYTableA(TableA)
-
-  def underlying[E](x: YYRep[E]): TableA = x.underlying.asInstanceOf[TableA]
-}
-
-case class YYTableARow(val id: SInt, val grade: SInt) extends YYTableRow
