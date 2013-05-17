@@ -7,7 +7,7 @@ import scala.slick.jdbc.JdbcBackend
 import scala.slick.driver.JdbcDriver
 
 package object yy {
-  //  def slick[T](block: => T): T = macro implementations.slickYYVP[T]
+  def shallow[T](block: => T): T = macro implementations.slickYYVP[T]
   def slickI[T](block: JdbcDriver => JdbcBackend#Session => T)(implicit driver: JdbcDriver, session: JdbcBackend#Session): T = macro implementations.slickYYVPImplicit[T]
   //  def slickYYImplicit[T](s: JdbcBackend#Session)(block: => T): T = macro implementations.slickYYImplicit[T]
   def slickYYImplicit[T](block: JdbcDriver => JdbcBackend#Session => T)(implicit driver: JdbcDriver, session: JdbcBackend#Session): T = //    val res = slickYY(block)

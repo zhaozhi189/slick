@@ -23,8 +23,8 @@ trait YYSlickCake extends YYSlickLowPriorityImplicits {
   type Double = YYColumn[scala.Double]
   type String = YYColumn[Predef.String]
   type Boolean = YYColumn[scala.Boolean]
-  type TableRow = scala.slick.yy.YYTableRow
-  type YYTableRow = Table[TableRow] // w/o it: "type YYTableRow is not a member of CAKE"
+  //  type TableRow = scala.slick.yy.YYTableRow
+  //  type YYTableRow = Table[TableRow] // w/o it: "type YYTableRow is not a member of CAKE"
   type ColumnOps[T] = YYColumn[T]
   type Invoker[T] = scala.slick.yy.Shallow.Invoker[T]
 
@@ -72,15 +72,15 @@ trait YYSlickCake extends YYSlickLowPriorityImplicits {
 
   // testing stuffs
 
-  type TableARow = scala.slick.yy.YYTableARow
-  type YYTableARow = Table[TableARow] // w/o it: "type YYTableARow is not a member of CAKE"
-
-  implicit def convertYYTableARow(t: Table[TableARow]) = new TestTable.YYTableA(t.underlying.asInstanceOf[TestTable.TableA])
-  implicit object implicitYYTableA extends TestTable.YYTableA(TestTable.TableA)
+  //  type TableARow = scala.slick.yy.YYTableARow
+  //  type YYTableARow = Table[TableARow] // w/o it: "type YYTableARow is not a member of CAKE"
+  //
+  //  implicit def convertYYTableARow(t: Table[TableARow]) = new TestTable.YYTableA(t.underlying.asInstanceOf[TestTable.TableA])
+  //  implicit object implicitYYTableA extends TestTable.YYTableA(TestTable.TableA)
 
   object Table {
-    def test(): Table[TableRow] = TestTable.YYTableA.asInstanceOf[Table[TableRow]]
-    def test2(): Table[TableARow] = TestTable.YYTableA
+    //    def test(): Table[TableRow] = TestTable.YYTableA.asInstanceOf[Table[TableRow]]
+    //    def test2(): Table[TableARow] = TestTable.YYTableA
     def getTable[S](implicit mapping: Table[S]): Table[S] = mapping
   }
 

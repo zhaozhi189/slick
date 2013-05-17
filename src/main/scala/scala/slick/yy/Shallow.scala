@@ -58,14 +58,14 @@ object Shallow {
   }
 
   object Table {
-    def test(): Table[TableRow] = ???
-    def test2(): Table[TableARow] = ???
+    //    def test(): Table[TableRow] = ???
+    //    def test2(): Table[TableARow] = ???
     def getTable[S]: Table[S] = ???
   }
 
-  type TableRow = YYSlickCake#TableRow
-
-  type TableARow = YYSlickCake#TableARow
+  //  type TableRow = YYSlickCake#TableRow
+  //
+  //  type TableARow = YYSlickCake#TableARow
 
   object TestH2 {
     implicit val h2Driver = H2Driver
