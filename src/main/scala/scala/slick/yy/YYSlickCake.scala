@@ -14,7 +14,8 @@ import scala.slick.driver.JdbcProfile
 
 trait YYSlickCake extends YYSlickLowPriorityImplicits {
   type CakeRep[T] = YYRep[T]
-  type Tuple2[T1, T2] = YYProjection2[T1, T2]
+  //  type Tuple2[T1, T2] = YYProjection2[T1, T2]
+  type Tuple2[T1, T2] = YYTuple2[T1, T2]
   type Column[T] = YYColumn[T]
   type Table[T] = YYTable[T]
   type Query[T] = YYQuery[T]
@@ -34,6 +35,15 @@ trait YYSlickCake extends YYSlickLowPriorityImplicits {
 
   implicit def fixClosureContraVariance[T, U <: YYRep[T], S](x: U => S) =
     x.asInstanceOf[YYRep[T] => S]
+
+  implicit def yyRepIntToColumnOps(x: CakeRep[SInt]): Int =
+    x.asInstanceOf[Int]
+  implicit def yyRepLongToColumnOps(x: CakeRep[scala.Long]): Long =
+    x.asInstanceOf[Long]
+  implicit def yyRepStringToColumnOps(x: CakeRep[Predef.String]): String =
+    x.asInstanceOf[String]
+  implicit def yyRepDoubleToColumnOps(x: CakeRep[scala.Double]): Double =
+    x.asInstanceOf[Double]
 
   object Queryable {
     def apply[T](implicit t: YYTable[T]): Query[T] = YYQuery.apply(t)
@@ -66,6 +76,7 @@ trait YYSlickCake extends YYSlickLowPriorityImplicits {
 
   object Tuple2 {
     def apply[T1, T2](_1: Column[T1], _2: Column[T2]) = YYProjection.fromYY(_1, _2)
+    //    def apply[T1, T2](_1: CakeRep[T1], _2: CakeRep[T2])(implicit d: DummyImplicit) = YYTuple.fromYY(_1, _2)
   }
 
   object Table {

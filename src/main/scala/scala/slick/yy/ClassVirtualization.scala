@@ -145,6 +145,15 @@ trait YYTransformers {
       DefDef(Modifiers(Flag.IMPLICIT), newTermName("convImplicit" + yyTableName), List(), List(List(ValDef(Modifiers(PARAM), newTermName("x"), AppliedTypeTree(Ident(repTypeName), List(Ident(newTypeName(table.caseClassName)))), EmptyTree))), Ident(tableTypeName), body)
     }
 
+    // FIXME workaround for join!
+    def createColumnToTableImplicitDef(table: Table): DefDef = {
+      val yyTableName = getYYTableName(table)
+      val repTypeName = newTypeName("Column")
+      val tableTypeName = newTypeName(yyTableName)
+      val body = Apply(Select(New(Ident(tableTypeName)), nme.CONSTRUCTOR), List(TypeApply(Select(Select(Ident(newTermName("x")), newTermName("underlying")), newTermName("asInstanceOf")), List(Ident(newTypeName(table.moduleName))))))
+      DefDef(Modifiers(Flag.IMPLICIT), newTermName("convColumnImplicit" + yyTableName), List(), List(List(ValDef(Modifiers(PARAM), newTermName("x"), AppliedTypeTree(Ident(repTypeName), List(Ident(newTypeName(table.caseClassName)))), EmptyTree))), Ident(tableTypeName), body)
+    }
+
     def getTreesFromTable(table: Table): List[Tree] = {
       val caseClassDef = createCaseClassRow(table)
       val tableClassDef = createLiftedEmbeddingTableClass(table)
@@ -152,7 +161,8 @@ trait YYTransformers {
       val yyTableClassDef = createYYTableClass(table)
       val yyTableImplicitModule = createYYTableModule(table)
       val yyRepToTableImplicit = createRepToTableImplicitDef(table)
-      List(caseClassDef, tableClassDef, tableModuleDef, yyTableClassDef, yyTableImplicitModule, yyRepToTableImplicit)
+      val yyColumnToTableImplicit = createColumnToTableImplicitDef(table) // FIXME workaround for join!
+      List(caseClassDef, tableClassDef, tableModuleDef, yyTableClassDef, yyTableImplicitModule, yyRepToTableImplicit, yyColumnToTableImplicit)
     }
 
     def convertCaseClass(tree: Tree) = {

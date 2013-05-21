@@ -58,7 +58,7 @@ class YYTest {
       q.first
     }
     assertEquals("Query of tuple2", (1, 2), r1)
-    val r2 = shallow {
+    val r2 = slickYYVPDebug {
       val x = (1, 2.5)
       Query(x).map(x => x._2).first
     }
@@ -328,6 +328,73 @@ class YYTest {
     }
     assertEquals("stringOps if (endsWith 'e') toUpperCase else ( + + ).trim", List("ONE", "two!", "THREE", "ten!"), r8.toList)
     DatabaseHandler.closeSession
+  }
+
+  @Test
+  def testZip = {
+    import Shallow.TestH2._
+    {
+      import scala.slick.driver.H2Driver.simple._
+      object Categories extends Table[(Int, String)]("cat_z") {
+        def id = column[Int]("id")
+        def name = column[String]("name")
+        def * = id ~ name
+      }
+
+      object Posts extends Table[(Int, String, Int)]("posts_z") {
+        def id = column[Int]("id", O.PrimaryKey, O.AutoInc)
+        def title = column[String]("title")
+        def category = column[Int]("category")
+        def * = id ~ title ~ category
+      }
+
+      (Categories.ddl ++ Posts.ddl).create
+
+      Categories insertAll (
+        (1, "Scala"),
+        (3, "Windows"),
+        (2, "ScalaQuery"),
+        (4, "Software"))
+      Posts.title ~ Posts.category insertAll (
+        ("Test Post", -1),
+        ("Formal Language Processing in Scala, Part 5", 1),
+        ("Efficient Parameterized Queries in ScalaQuery", 2),
+        ("Removing Libraries and HomeGroup icons from the Windows 7 desktop", 3),
+        ("A ScalaQuery Update", 2))
+    }
+
+    //    val q1 = for {
+    //      (c, i) <- Categories.sortBy(_.id).zipWithIndex
+    //    } yield (c.id, i)
+    //    println("ZipWithIndex: " + q1.selectStatement)
+    //    q1.foreach(x => println("  " + x))
+    //    assertEquals(List((1, 0), (2, 1), (3, 2), (4, 3)), q1.list)
+
+    //    val q2 = for {
+    //      (c, p) <- Categories.sortBy(_.id) zip Posts.sortBy(_.category)
+    //    } yield (c.id, p.category)
+    //    println("Zip: " + q2.selectStatement)
+    @Entity("cat_z") case class Categories(@Entity("id") id: Int, @Entity("name") name: String)
+    @Entity("posts_z") case class Posts(@Entity("id") id: Int, @Entity("title") title: String, @Entity("category") category: Int)
+    import Shallow._
+    val q1 = shallow {
+      val q = Queryable[Categories].sortBy(_.id).zipWithIndex
+      val q1 = q.map(x => (x._1.id, x._2))
+      q1.toSeq
+    }
+    //    q1.foreach(x => println("  " + x))
+    assertEquals(List((1, 0), (2, 1), (3, 2), (4, 3)), q1.toList)
+    val q2 = shallow {
+      //      val q = for {
+      //        (c, p) <- Queryable[Categories].sortBy(_.id) zip Queryable[Posts].sortBy(_.category)
+      //      } yield (c.id, p.category)
+      val q =
+        Queryable[Categories].sortBy(_.id) zip Queryable[Posts].sortBy(_.category)
+      val q1 = q.map(x => (x._1.id, x._2.category))
+      q1.toSeq
+    }
+    //    q2.foreach(x => println("  " + x))
+    assertEquals(List((1, -1), (2, 1), (3, 2), (4, 2)), q2.toList)
   }
 
   def initCoffeeTable() {

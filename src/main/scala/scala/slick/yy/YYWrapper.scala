@@ -3,6 +3,7 @@ package scala.slick.yy
 import scala.slick.lifted.Column
 import scala.slick.lifted.Projection
 import scala.slick.lifted.Projection2
+import scala.slick.lifted.LiftedTuple2
 import scala.slick.lifted.Query
 import scala.slick.lifted.ColumnOrdered
 import scala.slick.jdbc.JdbcBackend
@@ -36,6 +37,7 @@ import scala.slick.SlickException
 import scala.slick.lifted.BooleanColumnExtensionMethods
 import scala.slick.profile.BasicDriver
 import scala.slick.driver.JdbcProfile
+import scala.slick.lifted.BaseJoinQuery
 
 trait YYWraper[UT] {
   type NonRep = UT
@@ -50,6 +52,7 @@ object YYValue {
       case c: Column[_] => YYColumn(c)
       case t: AbstractTable[_] => YYTable(t)
       case tup: Projection2[_, _] => YYProjection(tup)
+      //      case tup: LiftedTuple2[_, _] => YYTuple(tup)
     }
   }
 
@@ -251,6 +254,18 @@ trait YYQuery[U] extends QueryOps[U] with YYRep[Seq[U]] {
     invoker(driver)
 }
 
+trait YYJoinQuery[U1, U2] extends YYQuery[(U1, U2)] {
+  type T = (U1, U2)
+  override protected def underlyingProjection[S](projection: YYRep[T] => YYRep[S]): Rep[T] => Rep[S] = {
+    def underlyingProjection(x: (Rep[U1], Rep[U2])): Rep[S] = projection({
+      YYTuple.apply(x._1, x._2)
+    }).underlying
+
+    val res = underlyingProjection _
+    res.asInstanceOf[(Rep[T] => Rep[S])]
+  }
+}
+
 object YYQuery {
   def create[U](q: Query[Rep[U], U], e: Rep[U]): YYQuery[U] = {
     class YYQueryInst[E1 <: YYRep[U]] extends YYQuery[U] {
@@ -269,6 +284,13 @@ object YYQuery {
     val e = YYUtils.valueOfQuery(q)
     create(q, e)
   }
+  def fromJoinQuery[U1, U2](q: Query[(Rep[U1], Rep[U2]), (U1, U2)]): YYJoinQuery[U1, U2] = {
+    new YYJoinQuery[U1, U2] {
+      type E = YYProjection[(U1, U2)]
+      val query = q.asInstanceOf[Query[(Rep[(U1, U2)]), (U1, U2)]]
+      override def repValue: Rep[(U1, U2)] = ???
+    }
+  }
 
   def apply[U](v: YYRep[U]): YYQuery[U] = {
     val query = Query(v.underlying)(YYShape.ident[U])
@@ -282,7 +304,7 @@ object YYQuery {
 }
 
 trait QueryOps[T] { self: YYQuery[T] =>
-  private def underlyingProjection[S](projection: YYRep[T] => YYRep[S]): Rep[T] => Rep[S] = {
+  protected def underlyingProjection[S](projection: YYRep[T] => YYRep[S]): Rep[T] => Rep[S] = {
     def underlyingProjection(x: Rep[T]): Rep[S] = projection({
       YYValue[T, E](x)
     }).underlying
@@ -331,6 +353,18 @@ trait QueryOps[T] { self: YYQuery[T] =>
 
   def length: YYQuery[Int] =
     YYQuery(YYColumn(query.length))
+
+  //    def innerJoin[S](q2: YYQuery[S]): YYQuery[(T, S)] = {
+  //    	YYQuery.fromQuery(query.innerJoin(q2.query).asInstanceOf[Query[Rep[(T, S)], (T, S)]])
+  //    }
+  //  def leftJoin[E2, U2](q2: Query[E2, U2]) = join(q2, JoinType.Left)
+  //  def rightJoin[E2, U2](q2: Query[E2, U2]) = join(q2, JoinType.Right)
+  //  def outerJoin[E2, U2](q2: Query[E2, U2]) = join(q2, JoinType.Outer)
+  def zip[S](q2: YYQuery[S]): YYQuery[(T, S)] = {
+    //    YYQuery.fromJoinQuery(query.zip(q2.query).asInstanceOf[Query[Rep[(T, S)], (T, S)]])
+    YYQuery.fromJoinQuery(query.zip(q2.query))
+  }
+  def zipWithIndex: YYQuery[(T, Long)] = YYQuery.fromJoinQuery(query.zipWithIndex)
 }
 
 sealed trait YYProjection[T <: Product] extends YYRep[T] with Product {
@@ -343,7 +377,8 @@ object YYProjection {
     new YYProjection2[T1, T2] {
       def _1 = YYColumn(tuple2._1)
       def _2 = YYColumn(tuple2._2)
-      override def underlying = _1.underlying ~ _2.underlying
+      //      override def underlying = _1.underlying ~ _2.underlying
+      override def underlying = tuple2
     }
   }
 
@@ -359,7 +394,40 @@ object YYProjection {
 }
 
 // TODO generalize it for TupleN
-trait YYProjection2[T1, T2] extends Product2[YYColumn[T1], YYColumn[T2]] with YYProjection[(T1, T2)] {
+//trait YYProjection2[T1, T2] extends Product2[YYColumn[T1], YYColumn[T2]] with YYProjection[(T1, T2)] {
+//  override def toString = "YY(" + _1 + ", " + _2 + ")"
+//}
+trait YYProjection2[T1, T2] extends Product2[YYColumn[T1], YYColumn[T2]] with YYTuple2[T1, T2] {
+  override def toString = "YY(" + _1 + ", " + _2 + ")"
+}
+
+object YYTuple {
+  def apply[T1, T2](tuple2: LiftedTuple2[T1, T2]): YYTuple2[T1, T2] = {
+    new YYTuple2[T1, T2] {
+      def _1 = YYValue.applyUntyped(tuple2._1)
+      def _2 = YYValue.applyUntyped(tuple2._2)
+      override def underlying = tuple2
+    }
+  }
+
+  // TODO generalize it for TupleN
+  def apply[T1, T2](__1: Rep[T1], __2: Rep[T2]): YYTuple2[T1, T2] = {
+    //    new YYTuple2[T1, T2] {
+    //      def _1 = YYValue.applyUntyped(__1)
+    //      def _2 = YYValue.applyUntyped(__2)
+    //      override def underlying = new LiftedTuple2(__1, __2)
+    //    }
+    apply(new LiftedTuple2(__1, __2))
+  }
+
+  // TODO generalize it for TupleN
+  def fromYY[T1, T2](_1: YYRep[T1], _2: YYRep[T2]): YYTuple2[T1, T2] = {
+    apply(_1.underlying, _2.underlying)
+  }
+}
+
+// TODO generalize it for TupleN
+trait YYTuple2[T1, T2] extends Product2[YYRep[T1], YYRep[T2]] with YYProjection[(T1, T2)] {
   override def toString = "YY(" + _1 + ", " + _2 + ")"
 }
 
@@ -367,7 +435,11 @@ object YYUtils {
 
   def valueOfQuery[U, T <: Rep[U]](query: Query[T, U]): T = query match {
     case nwq: NonWrappingQuery[_, _] => nwq.unpackable.value
+    case bjq: BaseJoinQuery[_, _, _, _] => {
+      bjq.unpackable.value.asInstanceOf[T]
+    }
     case wq: WrappingQuery[_, _] => wq.base.value
+    //    case wq: WrappingQuery[_, _] => wq.unpackable.value
   }
 
   // FIXME hack!

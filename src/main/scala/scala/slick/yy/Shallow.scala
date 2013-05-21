@@ -22,6 +22,8 @@ object Shallow {
     def length: Query[Int] = ???
     def sortBy[S](projection: T => S)(implicit ord: Ordering[S]): Query[T] = ???
     def sorted(implicit ord: Ordering[T]): Query[T] = ???
+    def zip[S](q2: Query[S]): Query[(T, S)] = ???
+    def zipWithIndex: Query[(T, Long)] = ???
     def take(i: Int): Query[T] = ???
     def drop(i: Int): Query[T] = ???
     def toSeq: Seq[T] = ???

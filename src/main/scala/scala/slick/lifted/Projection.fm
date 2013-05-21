@@ -66,3 +66,13 @@ extends Tuple${i}(<#list 1..i as j>_${j}<#if i != j>,</#if></#list>) with Projec
 }
 
 </#list>
+
+<#list 2..22 as i>
+final class LiftedTuple${i}[<#list 1..i as j>T${j}<#if i != j>,</#if></#list>](
+<#list 1..i as j>
+  override val _${j}: Rep[T${j}]<#if i != j>,</#if>
+</#list>)
+extends Tuple${i}(<#list 1..i as j>_${j}<#if i != j>,</#if></#list>) with Projection[(<#list 1..i as j>T${j}<#if i != j>,</#if></#list>)] {
+}
+
+</#list>
