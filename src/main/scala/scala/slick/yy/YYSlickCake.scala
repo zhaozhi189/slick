@@ -19,6 +19,7 @@ trait YYSlickCake extends YYSlickLowPriorityImplicits {
   type Column[T] = YYColumn[T]
   type Table[T] = YYTable[T]
   type Query[T] = YYQuery[T]
+  type JoinQuery[T1, T2] = YYJoinQuery[T1, T2]
   type Int = YYColumn[SInt]
   type Long = YYColumn[scala.Long]
   type Double = YYColumn[scala.Double]

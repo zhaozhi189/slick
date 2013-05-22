@@ -58,7 +58,7 @@ class YYTest {
       q.first
     }
     assertEquals("Query of tuple2", (1, 2), r1)
-    val r2 = slickYYVPDebug {
+    val r2 = shallow {
       val x = (1, 2.5)
       Query(x).map(x => x._2).first
     }
@@ -328,6 +328,96 @@ class YYTest {
     }
     assertEquals("stringOps if (endsWith 'e') toUpperCase else ( + + ).trim", List("ONE", "two!", "THREE", "ten!"), r8.toList)
     DatabaseHandler.closeSession
+  }
+  @Test
+  def testJoin {
+    import Shallow.TestH2._
+    {
+      import scala.slick.driver.H2Driver.simple._
+      object Categories extends Table[(Int, String)]("cat_j") {
+        def id = column[Int]("id")
+        def name = column[String]("name")
+        def * = id ~ name
+      }
+
+      object Posts extends Table[(Int, String, Int)]("posts_j") {
+        def id = column[Int]("id", O.PrimaryKey, O.AutoInc)
+        def title = column[String]("title")
+        def category = column[Int]("category")
+        def * = id ~ title ~ category
+      }
+
+      (Categories.ddl ++ Posts.ddl).create
+
+      Categories insertAll (
+        (1, "Scala"),
+        (2, "ScalaQuery"),
+        (3, "Windows"),
+        (4, "Software"))
+      Posts.title ~ Posts.category insertAll (
+        ("Test Post", -1),
+        ("Formal Language Processing in Scala, Part 5", 1),
+        ("Efficient Parameterized Queries in ScalaQuery", 2),
+        ("Removing Libraries and HomeGroup icons from the Windows 7 desktop", 3),
+        ("A ScalaQuery Update", 2))
+    }
+
+    @Entity("cat_j") case class Categories(@Entity("id") id: Int, @Entity("name") name: String)
+    @Entity("posts_j") case class Posts(@Entity("id") id: Int, @Entity("title") title: String, @Entity("category") category: Int)
+    import Shallow._
+
+    //    val q1 = (for {
+    //      c <- Categories
+    //      p <- Posts if c.id is p.category
+    //    } yield p.id ~ c.id ~ c.name ~ p.title).sortBy(_._1)
+    val q1 = shallow {
+      (for {
+        c <- Queryable[Categories]
+        p <- Queryable[Posts] if c.id == p.category
+      } yield (p.id, c.id)).sortBy(_._1).toSeq
+    }
+    q1.foreach(x => println("  " + x))
+    assertEquals(List((2, 1), (3, 2), (4, 3), (5, 2)), q1.toList)
+
+    //    val q2 = (for {
+    //      (c, p) <- Categories innerJoin Posts on (_.id is _.category)
+    //    } yield p.id ~ c.id ~ c.name ~ p.title).sortBy(_._1)
+    val q2 = shallow {
+      val q = Queryable[Categories] innerJoin Queryable[Posts] on (_.id == _.category)
+      val q1 = q.sortBy(_._2.id)
+      val q2 = q1.map(x => (x._2.id, x._1.id))
+      q2.toSeq
+    }
+    q2.foreach(x => println("  " + x))
+    assertEquals(List((2, 1), (3, 2), (4, 3), (5, 2)), q2.toList)
+
+    //    val q3 = (for {
+    //      (c, p) <- Categories leftJoin Posts on (_.id is _.category)
+    //    } yield (p.id, p.id.?.getOrElse(0) ~ c.id ~ c.name ~ p.title.?.getOrElse(""))).sortBy(_._1.nullsFirst).map(_._2)
+    //    println("Left outer join (nulls first): " + q3.selectStatement)
+    //    q3.foreach(x => println("  " + x))
+    //    assertEquals(List((0, 4), (2, 1), (3, 2), (4, 3), (5, 2)), q3.map(p => p._1 ~ p._2).list)
+    //
+    //    val q3a = (for {
+    //      (c, p) <- Categories leftJoin Posts on (_.id is _.category)
+    //    } yield p.id ~ c.id ~ c.name ~ p.title).sortBy(_._1.nullsFirst)
+    //    assertFail(println("q3a result: " + q3a.list)) // reads NULL from non-nullable column
+    //
+    //    val q3b = (for {
+    //      (c, p) <- Categories leftJoin Posts on (_.id is _.category)
+    //    } yield (p.id, p.id.?.getOrElse(0) ~ c.id ~ c.name ~ p.title.?.getOrElse(""))).sortBy(_._1.nullsLast).map(_._2)
+    //    println("Left outer join (nulls last): " + q3b.selectStatement)
+    //    q3b.foreach(x => println("  " + x))
+    //    assertEquals(List((2, 1), (3, 2), (4, 3), (5, 2), (0, 4)), q3b.map(p => p._1 ~ p._2).list)
+    //
+    //    ifCap(scap.joinRight) {
+    //      val q4 = (for {
+    //        (c, p) <- Categories rightJoin Posts on (_.id is _.category)
+    //      } yield p.id ~ c.id.?.getOrElse(0) ~ c.name.?.getOrElse("") ~ p.title).sortBy(_._1)
+    //      println("Right outer join: " + q4.selectStatement)
+    //      q4.foreach(x => println("  " + x))
+    //      assertEquals(List((1, 0), (2, 1), (3, 2), (4, 3), (5, 2)), q4.map(p => p._1 ~ p._2).list)
+    //    }
   }
 
   @Test

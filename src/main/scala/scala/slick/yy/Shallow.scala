@@ -22,8 +22,9 @@ object Shallow {
     def length: Query[Int] = ???
     def sortBy[S](projection: T => S)(implicit ord: Ordering[S]): Query[T] = ???
     def sorted(implicit ord: Ordering[T]): Query[T] = ???
-    def zip[S](q2: Query[S]): Query[(T, S)] = ???
-    def zipWithIndex: Query[(T, Long)] = ???
+    def innerJoin[S](q2: Query[S]): JoinQuery[T, S] = ???
+    def zip[S](q2: Query[S]): JoinQuery[T, S] = ???
+    def zipWithIndex: JoinQuery[T, Long] = ???
     def take(i: Int): Query[T] = ???
     def drop(i: Int): Query[T] = ???
     def toSeq: Seq[T] = ???
@@ -31,6 +32,10 @@ object Shallow {
     def getInvoker: Invoker[T] = ???
     def firstImplicit: (JdbcDriver => JdbcBackend#Session => T) = ???
     def toSeqImplicit: (JdbcDriver => JdbcBackend#Session => Seq[T]) = ???
+  }
+
+  class JoinQuery[T1, T2] extends Query[(T1, T2)] {
+    def on(pred: (T1, T2) => Boolean): Query[(T1, T2)] = ???
   }
 
   implicit def stringWrapper(value: String): ColumnOps[String] =
