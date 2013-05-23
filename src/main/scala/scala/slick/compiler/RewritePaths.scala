@@ -194,7 +194,13 @@ class PruneFields extends Phase {
   val name = "pruneFields"
 
   def apply(state: CompilerState) = state.map { n =>
-    ClientSideOp.mapServerSide(n)(prune.repeat)
+    ClientSideOp.mapServerSide(n) { ch =>
+      val ch2 = ch match {
+        case Bind(gen, from, Pure(StructNode(els))) =>
+          Bind(gen, from, Pure(ProductNode(els.map(_._2))))
+      }
+      prune.repeat(ch2)
+    }
   }
 
   def prune = new Transformer {
@@ -204,6 +210,7 @@ class PruneFields extends Phase {
       refs.clear()
       refs ++= n.collect[Symbol] { case Select(_, f: Symbol) => f }
       logger.debug("Protecting refs: "+refs)
+
     }
     def replace = {
       case n @ StructNode(ch) =>

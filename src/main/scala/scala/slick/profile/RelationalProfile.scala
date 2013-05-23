@@ -108,6 +108,8 @@ trait RelationalTableComponent { driver: RelationalDriver =>
 
     def tableProvider: RelationalDriver = driver
 
+    def tableIdentitySymbol: TableIdentitySymbol = SimpleTableIdentitySymbol(driver, schemaName.getOrElse("_"), tableName)
+
     val O: driver.columnOptions.type = columnOptions
 
     def column[C](n: String, options: ColumnOption[C]*)(implicit tm: TypedType[C]): Column[C] = new Column[C] {
@@ -134,7 +136,7 @@ trait RelationalTableComponent { driver: RelationalDriver =>
 
     def ddl: SchemaDescription = buildTableSchemaDescription(this)
 
-    def tpe = CollectionType(CollectionTypeConstructor.default, *.tpe)
+    def tpe = CollectionType(CollectionTypeConstructor.default, NominalType(tableIdentitySymbol)(NoType))
   }
 }
 

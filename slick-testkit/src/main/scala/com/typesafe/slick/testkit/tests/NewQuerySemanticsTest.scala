@@ -157,6 +157,7 @@ class NewQuerySemanticsTest extends TestkitTest[RelationalTestDB] {
     }
 
     ifCap(rcap.pagingNested) {
+      (Suppliers.take(2) join Suppliers on (_.id === _.id)).run //--
       val q1b_0 = Coffees.sortBy(_.price).take(3) join Suppliers on (_.supID === _.id)
       val q1b = for {
         (c, s) <- q1b_0.sortBy(_._1.price).take(2).filter(_._1.name =!= "Colombian")
