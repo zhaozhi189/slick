@@ -14,14 +14,23 @@ object Shallow {
     def apply[T]: Query[T] = ???
   }
 
+  // TODO needs option type
+  //  implicit class SingleColumnQuery[T <: AnyVal](val query: Query[T]) extends AnyVal {
+  //    def min: T = ???
+  //    def max: T = ???
+  //    def avg: T = ???
+  //    def sum: T = ???
+  //  }
+
   class Query[T] {
     def flatMap[S](projection: T => Query[S]): Query[S] = ???
     def map[S](projection: T => S): Query[S] = ???
     def filter(projection: T => Boolean): Query[T] = ???
     def withFilter(projection: T => Boolean): Query[T] = ???
-    def length: Query[Int] = ???
+    def length: Int = ???
     def sortBy[S](projection: T => S)(implicit ord: Ordering[S]): Query[T] = ???
     def sorted(implicit ord: Ordering[T]): Query[T] = ???
+    def groupBy[S](f: T => S): Query[(S, Seq[T])] = ???
     def innerJoin[S](q2: Query[S]): JoinQuery[T, S] = ???
     def zip[S](q2: Query[S]): JoinQuery[T, S] = ???
     def zipWithIndex: JoinQuery[T, Long] = ???
@@ -41,7 +50,7 @@ object Shallow {
   implicit def stringWrapper(value: String): ColumnOps[String] =
     new ColumnOps(value)
 
-  implicit class ColumnOps[T](value: T) {
+  implicit class ColumnOps[T](val value: T) extends AnyVal {
     //    def abs: T = ??? // there's no need for it, intWrapper is handling it
     def ceil: T = ???
     def floor: T = ???

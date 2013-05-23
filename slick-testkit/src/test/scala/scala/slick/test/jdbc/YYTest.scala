@@ -499,6 +499,42 @@ class YYTest {
     assertEquals(List((1, -1), (2, 1), (3, 2), (4, 2)), q2.toList)
   }
 
+  @Test
+  def testGroupBy = {
+    import Shallow.TestH2._
+    {
+      import scala.slick.driver.H2Driver.simple._
+      object T extends Table[(Int, Int)]("t3") {
+        def a = column[Int]("a")
+        def b = column[Int]("b")
+        def * = a ~ b
+      }
+      T.ddl.create
+      T.insertAll((1, 1), (1, 2), (1, 3))
+      T.insertAll((2, 1), (2, 2), (2, 5))
+      T.insertAll((3, 1), (3, 9))
+    }
+    @Entity("t3") case class T3(@Entity("a") a: Int, @Entity("b") b: Int)
+    import Shallow._
+    val r0 = slickYYVPDebug {
+      val q0 = Queryable[T3].groupBy(_.a)
+      val q1 = q0.map(_._2.length).sorted
+      q1.toSeq
+    }
+    val r0t: List[Int] = r0.toList
+    assertEquals(List(2, 3, 3), r0t)
+
+    //    println("=========================================================== q")
+    //    val q = (for {
+    //      (k, v) <- T.groupBy(t => t.a)
+    //    } yield (k, v.length, v.map(_.a).sum, v.map(_.b).sum)).sortBy(_._1)
+    //    println(q.selectStatement)
+    //    val r = q.list
+    //    val rt = r: List[(Int, Int, Option[Int], Option[Int])]
+    //    println(r)
+    //    assertEquals(List((1, 3, Some(3), Some(6)), (2, 3, Some(6), Some(8)), (3, 2, Some(6), Some(10))), rt)
+  }
+
   def initCoffeeTable() {
     import scala.slick.driver.H2Driver.simple._
 

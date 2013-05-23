@@ -37,6 +37,7 @@ import scala.slick.profile.BasicDriver
 import scala.slick.driver.JdbcProfile
 import scala.slick.lifted.BaseJoinQuery
 import scala.slick.lifted.BaseJoinQuery
+import scala.slick.lifted.SingleColumnQueryExtensionMethods
 
 trait YYWraper[UT] {
   type NonRep = UT
@@ -56,6 +57,11 @@ object YYValue {
     rep match {
       case c: Column[_] => YYColumn(c)
       case t: AbstractTable[_] => YYTable(t)
+      case q: Query[_, _] => {
+        type U = Nothing
+        type Q = Query[Rep[U], U]
+        YYQuery.fromQuery[U](q.asInstanceOf[Q]).asInstanceOf[YYRep[T]]
+      }
       case tup: Projection[_] => YYProjection.fromLiftedProjection(tup.asInstanceOf[Projection[Product]]).asInstanceOf[YYRep[T]]
     }
   }
@@ -255,6 +261,8 @@ trait YYQuery[U] extends QueryOps[U] with YYRep[Seq[U]] {
     invoker(driver)
 }
 
+//class 
+
 trait YYJoinQuery[U1, U2] extends YYQuery[(U1, U2)] {
   type T = (U1, U2)
   //  override protected def underlyingProjection[S](projection: YYRep[T] => YYRep[S]): Rep[T] => Rep[S] = {
@@ -373,12 +381,19 @@ trait QueryOps[T] { self: YYQuery[T] =>
     YYQuery.fromQuery(query.drop(v))
   }
 
-  def length: YYQuery[Int] =
-    YYQuery(YYColumn(query.length))
+  def length: YYColumn[Int] =
+    YYColumn(query.length)
+
+  def groupBy[S](f: YYRep[T] => YYRep[S]): YYQuery[(S, Seq[T])] = {
+    val liftedResult = query.groupBy(underlyingProjection(f))(YYShape.ident[S], YYShape.ident[T])
+    YYQuery.fromQuery(liftedResult.asInstanceOf[Query[Rep[(S, Seq[T])], (S, Seq[T])]])
+  }
 
   def innerJoin[S](q2: YYQuery[S]): YYJoinQuery[T, S] = {
     YYQuery.fromJoinQuery(query.innerJoin(q2.query))
   }
+
+  // TODO needs option type
   //  def leftJoin[E2, U2](q2: Query[E2, U2]) = join(q2, JoinType.Left)
   //  def rightJoin[E2, U2](q2: Query[E2, U2]) = join(q2, JoinType.Right)
   //  def outerJoin[E2, U2](q2: Query[E2, U2]) = join(q2, JoinType.Outer)
@@ -388,6 +403,17 @@ trait QueryOps[T] { self: YYQuery[T] =>
   }
   def zipWithIndex: YYJoinQuery[T, Long] = YYQuery.fromJoinQuery(query.zipWithIndex)
 }
+// TODO needs option type
+//final class YYSingleColumnQuery[T](val q: YYQuery[T]) extends AnyVal {
+//  def singleColumnQuery = new SingleColumnQueryExtensionMethods[T, T](q.underlying.asInstanceOf[Query[Column[T], T]])
+//  type OptionTM = TypedType[Option[T]]
+//  def min(implicit tm: OptionTM): YYColumn[T] = {
+//    YYColumn(singleColumnQuery.min)
+//  }
+//  def max(implicit tm: OptionTM) = ???
+//  def avg(implicit tm: OptionTM) = ???
+//  def sum(implicit tm: OptionTM) = ???
+//}
 
 object YYUtils {
 
@@ -401,13 +427,18 @@ object YYUtils {
   //    //    case wq: WrappingQuery[_, _] => wq.unpackable.value
   //  }
   def valueOfQuery[U, T <: Rep[U]](query: Query[T, U]): T = {
-    val value = query match {
-      case nwq: NonWrappingQuery[_, _] => nwq.unpackable.value
-      case bjq: BaseJoinQuery[_, _, _, _] => {
-        bjq.unpackable.value
-      }
-      case wq: WrappingQuery[_, _] => wq.unpackable.value
+    import scala.language.reflectiveCalls
+    type Unpackable = {
+      val unpackable: scala.slick.lifted.ShapedValue[_, _]
     }
+    val value = query.asInstanceOf[Unpackable].unpackable.value
+    //    val value = query match {
+    //      case nwq: NonWrappingQuery[_, _] => nwq.unpackable.value
+    //      case bjq: BaseJoinQuery[_, _, _, _] => {
+    //        bjq.unpackable.value
+    //      }
+    //      case wq: WrappingQuery[_, _] => wq.unpackable.value
+    //    }
     //    value.asInstanceOf[T]
     //    if (value.isInstanceOf[Rep[_]]) {
     //      value.asInstanceOf[T]

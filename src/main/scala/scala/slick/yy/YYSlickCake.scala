@@ -44,6 +44,9 @@ trait YYSlickCake extends YYSlickCakeTuples with YYSlickLowPriorityImplicits {
   implicit def yyRepDoubleToColumnOps(x: CakeRep[scala.Double]): Double =
     x.asInstanceOf[Double]
 
+  implicit def yyRepSeqToQuery[T](x: CakeRep[scala.Seq[T]]): Query[T] =
+    x.asInstanceOf[Query[T]]
+
   object Queryable {
     def apply[T](implicit t: YYTable[T]): Query[T] = YYQuery.apply(t)
   }

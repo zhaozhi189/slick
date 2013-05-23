@@ -51,7 +51,10 @@ trait YYProjection${i}[<#list 1..i as j>T${j}<#if i != j>,</#if></#list>] extend
 </#list>
 
 object YYTuple {
+
   def fromMixedTuple[T <: Product](mixed: T): YYProjection[T] = {
+    import scala.language.existentials
+    
     val result = mixed match {
       <#list 2..N as i>
       case (<#list 1..i as j>_${j}<#if i != j>,</#if></#list>) => apply(<#list 1..i as j>_${j}.asInstanceOf[Rep[_]]<#if i != j>,</#if></#list>)
