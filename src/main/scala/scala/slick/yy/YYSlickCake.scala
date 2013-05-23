@@ -12,10 +12,8 @@ import scala.slick.SlickException
 import scala.slick.profile.BasicDriver
 import scala.slick.driver.JdbcProfile
 
-trait YYSlickCake extends YYSlickLowPriorityImplicits {
+trait YYSlickCake extends YYSlickCakeTuples with YYSlickLowPriorityImplicits {
   type CakeRep[T] = YYRep[T]
-  //  type Tuple2[T1, T2] = YYProjection2[T1, T2]
-  type Tuple2[T1, T2] = YYTuple2[T1, T2]
   type Column[T] = YYColumn[T]
   type Table[T] = YYTable[T]
   type Query[T] = YYQuery[T]
@@ -74,11 +72,6 @@ trait YYSlickCake extends YYSlickLowPriorityImplicits {
   }
 
   def __equals[T](t: Column[T], e: Column[T]) = t === e
-
-  object Tuple2 {
-    def apply[T1, T2](_1: Column[T1], _2: Column[T2]) = YYProjection.fromYY(_1, _2)
-    //    def apply[T1, T2](_1: CakeRep[T1], _2: CakeRep[T2])(implicit d: DummyImplicit) = YYTuple.fromYY(_1, _2)
-  }
 
   object Table {
     def getTable[S](implicit mapping: Table[S]): Table[S] = mapping
