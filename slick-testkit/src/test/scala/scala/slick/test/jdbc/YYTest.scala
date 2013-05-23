@@ -91,6 +91,18 @@ class YYTest {
   }
 
   @Test
+  def tuple22Test() {
+    import Shallow._
+    import Shallow.TestH2._
+    val r1 = shallow {
+      val x = (1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22)
+      val q = Query(x)
+      q.first
+    }
+    assertEquals("Query of tuple22", (1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22), r1)
+  }
+
+  @Test
   def virtualizationProTest {
     initCoffeeTable()
     import Shallow._
@@ -374,9 +386,9 @@ class YYTest {
       (for {
         c <- Queryable[Categories]
         p <- Queryable[Posts] if c.id == p.category
-      } yield (p.id, c.id)).sortBy(_._1).toSeq
+      } yield (p.id, c.id, c.name, p.title)).sortBy(_._1).map(x => (x._1, x._2)).toSeq
     }
-    q1.foreach(x => println("  " + x))
+    //    q1.foreach(x => println("  " + x))
     assertEquals(List((2, 1), (3, 2), (4, 3), (5, 2)), q1.toList)
 
     //    val q2 = (for {
@@ -388,7 +400,7 @@ class YYTest {
       val q2 = q1.map(x => (x._2.id, x._1.id))
       q2.toSeq
     }
-    q2.foreach(x => println("  " + x))
+    //    q2.foreach(x => println("  " + x))
     assertEquals(List((2, 1), (3, 2), (4, 3), (5, 2)), q2.toList)
 
     //    val q3 = (for {
