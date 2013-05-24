@@ -36,7 +36,6 @@ import scala.slick.lifted.BooleanColumnExtensionMethods
 import scala.slick.profile.BasicDriver
 import scala.slick.driver.JdbcProfile
 import scala.slick.lifted.BaseJoinQuery
-import scala.slick.lifted.BaseJoinQuery
 import scala.slick.lifted.SingleColumnQueryExtensionMethods
 
 trait YYWraper[UT] {
@@ -64,6 +63,15 @@ object YYValue {
       }
       case tup: Projection[_] => YYProjection.fromLiftedProjection(tup.asInstanceOf[Projection[Product]]).asInstanceOf[YYRep[T]]
     }
+  }
+
+  def valueOfQuery[U, T <: Rep[U]](query: Query[T, U]): T = {
+    import scala.language.reflectiveCalls
+    type Unpackable = {
+      val unpackable: scala.slick.lifted.ShapedValue[_, _]
+    }
+    val value = query.asInstanceOf[Unpackable].unpackable.value
+    YYValue.fromLifted(value).underlying.asInstanceOf[T]
   }
 
   def apply[T](column: Column[T]): YYColumn[T] = {
@@ -261,19 +269,7 @@ trait YYQuery[U] extends QueryOps[U] with YYRep[Seq[U]] {
     invoker(driver)
 }
 
-//class 
-
 trait YYJoinQuery[U1, U2] extends YYQuery[(U1, U2)] {
-  type T = (U1, U2)
-  //  override protected def underlyingProjection[S](projection: YYRep[T] => YYRep[S]): Rep[T] => Rep[S] = {
-  //    def underlyingProjection(x: (Rep[U1], Rep[U2])): Rep[S] = projection({
-  //      YYTuple.apply(x._1, x._2)
-  //    }).underlying
-  //
-  //    val res = underlyingProjection _
-  //    res.asInstanceOf[(Rep[T] => Rep[S])]
-  //  }
-
   def on(pred: (YYRep[U1], YYRep[U2]) => YYColumn[Boolean]): YYQuery[(U1, U2)] = {
     def underlyingPredicate(_1: Rep[U1], _2: Rep[U2]): Column[Boolean] =
       pred(YYValue.applyUntyped(_1), YYValue.applyUntyped(_2)).underlying
@@ -296,14 +292,7 @@ object YYQuery {
   }
 
   def fromQuery[U](q: Query[Rep[U], U]): YYQuery[U] = {
-    //    if (q.isInstanceOf[BaseJoinQuery[_, _, _, _]]) {
-    //      type JQ[U1, U2] = Query[(Rep[U1], Rep[U2]), (U1, U2)]
-    //      fromJoinQuery(q.asInstanceOf[JQ[_, _]]).asInstanceOf[YYQuery[U]]
-    //    } else {
-    //      val e = YYUtils.valueOfQuery(q)
-    //      create(q, e)
-    //    }
-    val e = YYUtils.valueOfQuery(q)
+    val e = YYValue.valueOfQuery(q)
     create(q, e)
   }
   def fromJoinQuery[U1, U2](q: Query[(Rep[U1], Rep[U2]), (U1, U2)]): YYJoinQuery[U1, U2] = {
@@ -326,14 +315,6 @@ object YYQuery {
 }
 
 trait QueryOps[T] { self: YYQuery[T] =>
-  //  protected def underlyingProjection[S](projection: YYRep[T] => YYRep[S]): Rep[T] => Rep[S] = {
-  //    def underlyingProjection(x: Rep[T]): Rep[S] = projection({
-  //      YYValue[T, E](x)
-  //    }).underlying
-  //
-  //    val res = underlyingProjection _
-  //    res
-  //  }
   protected def underlyingProjection[S](projection: YYRep[T] => YYRep[S]): Rep[T] => Rep[S] = {
     def underlyingProjection(x: Any): Rep[S] = projection({
       YYValue.fromLifted[T](x)
@@ -370,7 +351,6 @@ trait QueryOps[T] { self: YYQuery[T] =>
     YYQuery.fromQuery(liftedResult)
   }
 
-  // ugly!!!
   def take(i: YYColumn[Int]): YYQuery[T] = {
     val v = i.getValue
     YYQuery.fromQuery(query.take(v))
@@ -414,55 +394,6 @@ trait QueryOps[T] { self: YYQuery[T] =>
 //  def avg(implicit tm: OptionTM) = ???
 //  def sum(implicit tm: OptionTM) = ???
 //}
-
-object YYUtils {
-
-  //  def valueOfQuery[U, T <: Rep[U](query: Query[T, U]): T = query match {
-  //  def valueOfQuery[U, T](query: Query[T, U])(implicit t: T <:< Rep[U]): T = query match {
-  //    case nwq: NonWrappingQuery[_, _] => nwq.unpackable.value
-  //    case bjq: BaseJoinQuery[_, _, _, _] => {
-  //      bjq.unpackable.value.asInstanceOf[T]
-  //    }
-  //    case wq: WrappingQuery[_, _] => wq.unpackable.value
-  //    //    case wq: WrappingQuery[_, _] => wq.unpackable.value
-  //  }
-  def valueOfQuery[U, T <: Rep[U]](query: Query[T, U]): T = {
-    import scala.language.reflectiveCalls
-    type Unpackable = {
-      val unpackable: scala.slick.lifted.ShapedValue[_, _]
-    }
-    val value = query.asInstanceOf[Unpackable].unpackable.value
-    //    val value = query match {
-    //      case nwq: NonWrappingQuery[_, _] => nwq.unpackable.value
-    //      case bjq: BaseJoinQuery[_, _, _, _] => {
-    //        bjq.unpackable.value
-    //      }
-    //      case wq: WrappingQuery[_, _] => wq.unpackable.value
-    //    }
-    //    value.asInstanceOf[T]
-    //    if (value.isInstanceOf[Rep[_]]) {
-    //      value.asInstanceOf[T]
-    //    } else {
-    //      if (value.isInstanceOf[Product]) {
-    //        val prod = value.asInstanceOf[Product]
-    //        LiftedProduct(prod).asInstanceOf[T]
-    //      } else {
-    //        ???
-    //      }
-    //    }
-    YYValue.fromLifted(value).underlying.asInstanceOf[T]
-  }
-
-  // FIXME hack!
-  val conn = H2Driver.simple.Database.forURL("jdbc:h2:mem:test14", driver = "org.h2.Driver")
-  private var session = conn.createSession
-  implicit def h2Session = session
-  def provideSession: JdbcBackend#Session = session
-  def closeSession {
-    session.close
-    session = conn.createSession
-  }
-}
 
 object YYDebug {
   def apply(a: Any) {

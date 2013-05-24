@@ -1,13 +1,32 @@
-//package com.typesafe.slick
+package com.typesafe.slick
 //
 //import scala.slick.yy.YYTransformers
 //import scala.slick.yy.Entity
-//import scala.tools.reflect.ToolBox
+import scala.tools.reflect.ToolBox
 //
-//object YYMainTest {
-//  import scala.reflect.runtime.{ universe => ru }
-//  import ru._
-//  val tb = runtimeMirror(getClass.getClassLoader).mkToolBox()
+object YYMainTest extends App {
+  import scala.reflect.runtime.{ universe => ru }
+  import ru._
+  val tb = runtimeMirror(getClass.getClassLoader).mkToolBox()
+
+  val b = (13, 3)
+  val l = List(b)
+  class Ext(val f: Int)
+  object Ext {
+    def unapply(i: (Int, Int)): Option[Ext] = Some(new Ext(i._1 * i._2))
+  }
+
+  val patmat = reify {
+    //    for ((x, y) <- l) yield (x, y)
+    //    for (Ext(x) <- l) yield (x.f)
+    b match {
+      case (x, y) => true
+    }
+  }
+
+  println(showRaw(patmat.tree))
+  println(patmat)
+}
 //  
 //  val l = List(4, 2, 1)
 //  l.sortBy(identity)

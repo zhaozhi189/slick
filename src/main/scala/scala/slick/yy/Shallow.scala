@@ -78,6 +78,13 @@ object Shallow {
 
   object TestH2 {
     implicit val h2Driver = H2Driver
-    implicit def h2Session = YYUtils.h2Session
+    implicit def h2Session = _session
+    private val conn = h2Driver.simple.Database.forURL("jdbc:h2:mem:test14", driver = "org.h2.Driver")
+    private var _session = conn.createSession
+    def provideSession: JdbcBackend#Session = _session
+    def closeSession {
+      _session.close
+      _session = conn.createSession
+    }
   }
 }

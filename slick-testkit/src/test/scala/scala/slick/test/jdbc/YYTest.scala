@@ -271,6 +271,11 @@ class YYTest {
       q1.toSeq
     }
     assertEquals("Query forComprehension filter == map (_1, _2) of Table + Annotation", List((3, "three")), r7.toList)
+    val r8 = shallow {
+      val q1 = for ((x, y) <- Queryable[Coffn].map(x => (x.idNumber, x._2)) if x == 3) yield (x, y)
+      q1.toSeq
+    }
+    assertEquals("Query forComprehension filter == map (_1, _2) of Table + Annotation + (_1, _2) <-", List((3, "three")), r7.toList)
     DatabaseHandler.closeSession
   }
   @Test
@@ -497,6 +502,15 @@ class YYTest {
     }
     //    q2.foreach(x => println("  " + x))
     assertEquals(List((1, -1), (2, 1), (3, 2), (4, 2)), q2.toList)
+    // TODO
+    val q3 = shallow {
+      val q = for {
+        (c, p) <- Queryable[Categories].sortBy(_.id) zip Queryable[Posts].sortBy(_.category)
+      } yield (c.id, p.category)
+      q.toSeq
+    }
+    //    q2.foreach(x => println("  " + x))
+    assertEquals(List((1, -1), (2, 1), (3, 2), (4, 2)), q3.toList)
   }
 
   @Test
@@ -516,7 +530,7 @@ class YYTest {
     }
     @Entity("t3") case class T3(@Entity("a") a: Int, @Entity("b") b: Int)
     import Shallow._
-    val r0 = slickYYVPDebug {
+    val r0 = shallow {
       val q0 = Queryable[T3].groupBy(_.a)
       val q1 = q0.map(_._2.length).sorted
       q1.toSeq
@@ -579,5 +593,5 @@ class YYTest {
     Test
   }
 
-  val DatabaseHandler = YYUtils
+  val DatabaseHandler = Shallow.TestH2
 }
