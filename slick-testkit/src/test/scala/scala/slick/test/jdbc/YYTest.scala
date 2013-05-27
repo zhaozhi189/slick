@@ -159,7 +159,7 @@ class YYTest {
   }
 
   @Test
-  def virtualizationMagicTest {
+  def virtualizationOutsideTest {
     initCoffeeTable()
     import Shallow._
     import Shallow.TestH2._
@@ -199,6 +199,24 @@ class YYTest {
       q1.toSeq
     }
     assertEquals("Query filter == map (_1, _2) of Virtualized++ Table + Annotation", CoffeeNested2(3, "three"), r6.head)
+
+    val q = shallow {
+      Queryable[CoffeeNested2] filter (x => x.idNumber == 3)
+    }
+    val r7 = shallow {
+      q.toSeq
+    }
+    assertEquals("Query filter == map (_1, _2) of Virtualized++ Table + Annotation", CoffeeNested2(3, "three"), r7.head)
+    //    val q0 = shallow {
+    //      Queryable[CoffeeNested2]
+    //    }
+    //    val q1 = shallow {
+    //      q0 filter (x => x.idNumber == 3)
+    //    }
+    //    val r8 = shallow {
+    //      q1.toSeq
+    //    }
+    //    assertEquals("Query filter == map (_1, _2) of Virtualized++ Table + Annotation", CoffeeNested2(3, "three"), r8.head)
 
     //    @Entity("COFFEE") case class CoffeeNested3(@Entity("ID") idNumber: Int, @Entity("NAME") coffeeName: String)
     //    val r7 = shallow {

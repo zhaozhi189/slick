@@ -4,8 +4,9 @@ import ch.epfl.lamp.yinyang.api.BaseYinYang
 import ch.epfl.lamp.yinyang.api.Interpreted
 import scala.annotation.tailrec
 import scala.slick.SlickException
+import _root_.scala.slick.yy.{ Shallow => OShallow }
 
-trait SlickYinYang extends scala.slick.driver.JdbcDriver.ImplicitJdbcTypes with BaseYinYang with SlickConstYinYang with YYSlickCake with Interpreted {
+trait SlickYinYang extends scala.slick.driver.JdbcDriver.ImplicitJdbcTypes with BaseYinYang with SlickConstYinYang with YYSlickCake with Interpreted with TransferCake {
   def stagingAnalyze(allHoles: List[scala.Int]): List[scala.Int] = allHoles
 
   def reset() = ()
@@ -55,6 +56,7 @@ trait SlickYinYang extends scala.slick.driver.JdbcDriver.ImplicitJdbcTypes with 
 
     val resType = ttag.tpe.asInstanceOf[ru.TypeRef]
     val seqType = ru.typeOf[Seq[_]]
+    val queryType = ru.typeOf[_root_.scala.slick.yy.Shallow.Query[_]]
 
     val newRes =
       if (resType <:< seqType) {
@@ -63,6 +65,8 @@ trait SlickYinYang extends scala.slick.driver.JdbcDriver.ImplicitJdbcTypes with 
           result.asInstanceOf[Seq[_]] map convertResultElementToNewElement(tpe)
         else
           result
+      } else if (resType <:< queryType) {
+        new TransferQuery(result.asInstanceOf[YYQuery[_]])
       } else {
         if (resType.typeSymbol.asClass.isCaseClass)
           convertResultElementToNewElement(resType)(result)
@@ -73,6 +77,18 @@ trait SlickYinYang extends scala.slick.driver.JdbcDriver.ImplicitJdbcTypes with 
   }
 
   def main(): Any
+}
+
+trait TransferCake { self: SlickYinYang =>
+  import scala.slick.driver.JdbcProfile
+  import scala.slick.jdbc.JdbcBackend
+
+  class TransferQuery[T](val underlying: YYQuery[T]) extends OShallow.Query[T] {
+    //    def first(implicit driver: JdbcProfile, session: JdbcBackend#Session): T =
+    //      underlying.first(driver, session)
+    //    def toSeq(implicit driver: JdbcProfile, session: JdbcBackend#Session): Seq[T] =
+    //      underlying.toSeq(driver, session)
+  }
 }
 
 //trait ImplicitSlickYinYang extends SlickYinYang {
@@ -110,4 +126,14 @@ trait SlickConstYinYang extends scala.slick.driver.JdbcDriver.ImplicitJdbcTypes 
     def lift(v: Predef.String): String = YYConstColumn(v)
     def hole(tpe: Manifest[Any], symbolId: scala.Int): String = null
   }
+
+  implicit def liftQuery[T](implicit manifest: Manifest[OShallow.Query[T]]): LiftEvidence[OShallow.Query[T], Query[T]] = new LiftEvidence[OShallow.Query[T], Query[T]] {
+    def lift(v: OShallow.Query[T]): Query[T] = v.asInstanceOf[TransferQuery[T]].underlying
+    def hole(tpe: Manifest[Any], symbolId: scala.Int): Query[T] = null
+  }
+
+  //  implicit object LiftQuery extends LiftEvidence[OShallow.Query[scala.Int], Query[scala.Int]] {
+  //    def lift(v: OShallow.Query[scala.Int]): Query[scala.Int] = v.asInstanceOf[TransferQuery[scala.Int]].underlying
+  //    def hole(tpe: Manifest[Any], symbolId: scala.Int): Query[scala.Int] = null
+  //  }
 }
