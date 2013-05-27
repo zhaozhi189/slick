@@ -139,9 +139,8 @@ trait TreeGeneratorCore { self: MacroHelpers =>
   /**
    * Converts a table meta-model to its extractor (Its apply and unapply are used for <> of * in Lifted Embedding)
    */
-  def tableToTypeVal[Elem, TupleElem](table: Table)(obj: Type, typeParamName: TypeName): ValDef = {
+  def tableToTypeVal[Elem](table: Table)(tpe: Type): ValDef = {
     val termName = table.caseClassName
-    val tpe = obj.asInstanceOf[Type]
     val typeTree = typeToTree(tpe)
     val rhs = Apply(Select(New(typeTree), nme.CONSTRUCTOR), List())
     ValDef(NoMods, TermName(termName), TypeTree(), rhs)
@@ -187,7 +186,7 @@ trait TreeGeneratorCore { self: MacroHelpers =>
       // extractor!
       val tableTypeVal = typeMapper._1.tableExtractor(table.name)(universe) match {
         case None => Nil
-        case Some(obj) => List(tableToTypeVal(table)(obj, tableType.name))
+        case Some(tpe) => List(tableToTypeVal(table)(tpe))
       }
       // generate the table object
       val tableModule = tableToModule(table)

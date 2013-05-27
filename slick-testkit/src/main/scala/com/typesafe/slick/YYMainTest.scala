@@ -16,12 +16,14 @@ object YYMainTest extends App {
     def unapply(i: (Int, Int)): Option[Ext] = Some(new Ext(i._1 * i._2))
   }
 
+  for ((x, y) <- l) yield (x, y)
+
   val patmat = reify {
-    //    for ((x, y) <- l) yield (x, y)
+    for ((x, y) <- l) yield (x, y)
     //    for (Ext(x) <- l) yield (x.f)
-    b match {
-      case (x, y) => true
-    }
+    //    b match {
+    //      case (x, y) => true
+    //    }
   }
 
   println(showRaw(patmat.tree))

@@ -5,9 +5,10 @@ import scala.slick.schema.Column
 import scala.slick.schema.QualifiedName
 import scala.slick.typeproviders.MacroHelpers
 import scala.slick.typeproviders.DefaultContextUtils
-import scala.reflect.api.Universe
+import scala.reflect.macros.Universe
 import scala.reflect.api.Mirror
 import scala.collection.mutable.ArrayBuffer
+import scala.reflect.macros.Context
 
 trait YYTransformers {
   val universe: Universe
@@ -81,10 +82,11 @@ trait YYTransformers {
           val columnName = getNameOfSymbol(param).getOrElse(cName.toUpperCase())
           val columnQName = QualifiedName.columnName(tableQName, columnName)
           val tpe = param.typeSignature
-          Column(columnQName, tpe, cName, "case" + cName)
+          Column(columnQName, tpe, cName, /*"case" + */ cName)
         }
       }
       Table(tableQName, columns, Nil, tName + "Table", tName)
+      //      Table(tableQName, columns, Nil, tName + "Table", tName + "Row")
     }
 
     def getTableFromCaseClassDef(classDef: ClassDef) = getTableFromSymbol(classDef.symbol)
@@ -154,8 +156,48 @@ trait YYTransformers {
       DefDef(Modifiers(Flag.IMPLICIT), newTermName("convColumnImplicit" + yyTableName), List(), List(List(ValDef(Modifiers(PARAM), newTermName("x"), AppliedTypeTree(Ident(repTypeName), List(Ident(newTypeName(table.caseClassName)))), EmptyTree))), Ident(tableTypeName), body)
     }
 
-    def getTreesFromTable(table: Table): List[Tree] = {
+    def createTypeClassRow(table: Table)(symbol: Symbol): TypeDef = {
+      //      println(typeRef(symbol.typeSignature, symbol, Nil).typeSymbol.fullName)
+      //      println(typeRef(symbol.typeSignature, symbol, Nil))
+      //      macroHelper.tableToType(table)(typeRef(symbol.typeSignature, symbol, Nil))
+      //      println(symbol.typeSignature.widen)
+      //      println(symbol.fullName)
+      //      println(symbol.name.toTypeName)
+      val typeName = table.caseClassName
+      //      val tree = Ident(TypeName(typeName + "__"))
+      //      tree.setSymbol(symbol)
+      //      println(Ident(symbol.name))
+      //      println(Ident(TypeName(typeName + "__")))
+      //      println(tree)
+      //      val typeType = TypeTree(typeRef(symbol.typeSignature, symbol, Nil))
+      //      val typeType = Ident(symbol)
+      val typeType = TypeTree().setOriginal(Ident(symbol))
+      //      symbol.
+      //      val typeType = TypeTree().setOriginal(TypeTree(typeRef(symbol.typeSignature, symbol, Nil)))
+      //      val typeType = TypeTree().setSymbol(symbol)
+      //      build.newNestedSymbol(owner, name, pos, flags, isClass)
+      //      println(symbol.owner.newTypeSymbol(TypeName(typeName + "__")).fullName)
+      //            val typeType = Ident(TypeName(typeName)).setSymbol(symbol)
+      //      val typeType = Ident(symbol.newTypeSymbol(TypeName(typeName + "__")))
+      //      val typeType = TypeTree()
+
+      TypeDef(NoMods, TypeName(typeName + "__"), List(), typeType)
+    }
+
+    def createValClassRow(table: Table)(symbol: Symbol): ValDef = {
+      //      macroHelper.tableToTypeVal(table)(typeRef(symbol.typeSignature, symbol, Nil))
+      val termName = table.caseClassName
+      //    val typeTree = typeToTree(tpe)
+      //    val rhs = Apply(Select(New(typeTree), nme.CONSTRUCTOR), List())
+      val rhs = Ident(symbol)
+      //      val rhs = Ident(symbol.companionSymbol)
+      ValDef(Modifiers(Flag.LOCAL), TermName(termName), TypeTree(), rhs)
+    }
+
+    def getTreesFromTable(table: Table)(symbol: Symbol): List[Tree] = {
       val caseClassDef = createCaseClassRow(table)
+      //      val typeClassRow = createTypeClassRow(table)(symbol)
+      //      val valClassRow = createValClassRow(table)(symbol)
       val tableClassDef = createLiftedEmbeddingTableClass(table)
       val tableModuleDef = createLiftedEmbeddingTableModule(table)
       val yyTableClassDef = createYYTableClass(table)
@@ -163,6 +205,9 @@ trait YYTransformers {
       val yyRepToTableImplicit = createRepToTableImplicitDef(table)
       val yyColumnToTableImplicit = createColumnToTableImplicitDef(table) // FIXME workaround for join!
       List(caseClassDef, tableClassDef, tableModuleDef, yyTableClassDef, yyTableImplicitModule, yyRepToTableImplicit, yyColumnToTableImplicit)
+      //      List(typeClassRow, valClassRow, tableClassDef, tableModuleDef, yyTableClassDef, yyTableImplicitModule, yyRepToTableImplicit, yyColumnToTableImplicit)
+      //      List(typeClassRow, tableClassDef, tableModuleDef, yyTableClassDef, yyTableImplicitModule, yyRepToTableImplicit, yyColumnToTableImplicit)
+      //      List(tableClassDef, tableModuleDef, yyTableClassDef, yyTableImplicitModule, yyRepToTableImplicit, yyColumnToTableImplicit)
     }
 
     def convertCaseClass(tree: Tree) = {
@@ -170,7 +215,7 @@ trait YYTransformers {
       tree match {
         case classDef @ ClassDef(mods, _, _, _) if isCaseClassDef(tree) => {
           val table = getTableFromCaseClassDef(classDef)
-          getTreesFromTable(table)
+          getTreesFromTable(table)(classDef.symbol)
         }
         case _ => Nil
       }
@@ -184,9 +229,9 @@ trait YYTransformers {
     }
     def transformBySymbols(tree: Tree, symbols: List[Symbol]): Tree = tree match {
       case Block(stats, expr) => {
-        Block(symbols.flatMap((getTableFromSymbol _) andThen getTreesFromTable) ++ stats, expr)
+        Block(symbols.flatMap(x => getTreesFromTable(getTableFromSymbol(x))(x)) ++ stats, expr)
       }
-      case expr => Block(symbols.flatMap((getTableFromSymbol _) andThen getTreesFromTable), expr)
+      case expr => Block(symbols.flatMap(x => getTreesFromTable(getTableFromSymbol(x))(x)), expr)
     }
   }
 

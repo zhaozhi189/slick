@@ -7,6 +7,14 @@ import scala.slick.yy._
 import scala.slick.driver.H2Driver
 import scala.slick.jdbc.JdbcBackend
 
+@Entity("COFFEE") case class CoffeeNotNested(@Entity("ID") idNumber: Int, @Entity("NAME") coffeeName: String)
+object NestingObject {
+  @Entity("COFFEE") case class CoffeeNested1(@Entity("ID") idNumber: Int, @Entity("NAME") coffeeName: String)
+  object Level2 {
+    @Entity("COFFEE") case class CoffeeNested2(@Entity("ID") idNumber: Int, @Entity("NAME") coffeeName: String)
+  }
+}
+
 class YYTest {
 
   @Test def simpleTest() {
@@ -147,6 +155,62 @@ class YYTest {
       q1.toSeq
     }
     assertEquals("Query filter == map (_1, _2) of Virtualized++ Table + Annotation", List((3, "three")), r7.toList)
+    DatabaseHandler.closeSession
+  }
+
+  @Test
+  def virtualizationMagicTest {
+    initCoffeeTable()
+    import Shallow._
+    import Shallow.TestH2._
+    val r1 = shallow {
+      val q1 = Queryable[CoffeeNotNested] filter (x => x.idNumber == 3)
+      q1.first
+    }
+    assertEquals("Query filter == map (_1, _2) of Virtualized++ Table + Annotation", CoffeeNotNested(3, "three"), r1)
+    val r2 = shallow {
+      val q1 = Queryable[CoffeeNotNested] filter (x => x.idNumber == 3)
+      q1.toSeq
+    }
+    assertEquals("Query filter == map (_1, _2) of Virtualized++ Table + Annotation", CoffeeNotNested(3, "three"), r2.head)
+
+    import NestingObject.CoffeeNested1
+
+    val r3 = shallow {
+      val q1 = Queryable[CoffeeNested1] filter (x => x.idNumber == 3)
+      q1.first
+    }
+    assertEquals("Query filter == map (_1, _2) of Virtualized++ Table + Annotation", CoffeeNested1(3, "three"), r3)
+    val r4 = shallow {
+      val q1 = Queryable[CoffeeNested1] filter (x => x.idNumber == 3)
+      q1.toSeq
+    }
+    assertEquals("Query filter == map (_1, _2) of Virtualized++ Table + Annotation", CoffeeNested1(3, "three"), r4.head)
+
+    import NestingObject.Level2.CoffeeNested2
+
+    val r5 = shallow {
+      val q1 = Queryable[CoffeeNested2] filter (x => x.idNumber == 3)
+      q1.first
+    }
+    assertEquals("Query filter == map (_1, _2) of Virtualized++ Table + Annotation", CoffeeNested2(3, "three"), r5)
+    val r6 = shallow {
+      val q1 = Queryable[CoffeeNested2] filter (x => x.idNumber == 3)
+      q1.toSeq
+    }
+    assertEquals("Query filter == map (_1, _2) of Virtualized++ Table + Annotation", CoffeeNested2(3, "three"), r6.head)
+
+    //    @Entity("COFFEE") case class CoffeeNested3(@Entity("ID") idNumber: Int, @Entity("NAME") coffeeName: String)
+    //    val r7 = shallow {
+    //      val q1 = Queryable[CoffeeNested3] filter (x => x.idNumber == 3)
+    //      q1.first
+    //    }
+    //    val r8 = shallow {
+    //      val q1 = Queryable[CoffeeNested3] filter (x => x.idNumber == 3)
+    //      q1.toSeq
+    //    }
+    //    assertEquals("Query filter == map (_1, _2) of Virtualized++ Table + Annotation", CoffeeNested3(3, "three"), r8.head)
+
     DatabaseHandler.closeSession
   }
 
@@ -502,7 +566,6 @@ class YYTest {
     }
     //    q2.foreach(x => println("  " + x))
     assertEquals(List((1, -1), (2, 1), (3, 2), (4, 2)), q2.toList)
-    // TODO
     val q3 = shallow {
       val q = for {
         (c, p) <- Queryable[Categories].sortBy(_.id) zip Queryable[Posts].sortBy(_.category)
@@ -547,6 +610,13 @@ class YYTest {
     //    val rt = r: List[(Int, Int, Option[Int], Option[Int])]
     //    println(r)
     //    assertEquals(List((1, 3, Some(3), Some(6)), (2, 3, Some(6), Some(8)), (3, 2, Some(6), Some(10))), rt)
+    val r = shallow {
+      (for {
+        (k, v) <- Queryable[T3].groupBy(t => t.a)
+      } yield (k, v.length)).sortBy(_._1).toSeq
+    }
+    val rt: List[(Int, Int)] = r.toList
+    assertEquals(List((1, 3), (2, 3), (3, 2)), rt)
   }
 
   def initCoffeeTable() {
