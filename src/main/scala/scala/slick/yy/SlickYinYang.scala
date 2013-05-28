@@ -89,6 +89,11 @@ trait TransferCake { self: SlickYinYang =>
     //    def toSeq(implicit driver: JdbcProfile, session: JdbcBackend#Session): Seq[T] =
     //      underlying.toSeq(driver, session)
   }
+
+  class QueryElem[T, S]
+
+  implicit def queryElemAnyVal[T <: AnyVal]: QueryElem[T, T] = new QueryElem[T, T]
+  implicit def queryElemCaseClass[T <: Product with Serializable]: QueryElem[T, T] = new QueryElem[T, T] {}
 }
 
 //trait ImplicitSlickYinYang extends SlickYinYang {
@@ -127,9 +132,9 @@ trait SlickConstYinYang extends scala.slick.driver.JdbcDriver.ImplicitJdbcTypes 
     def hole(tpe: Manifest[Any], symbolId: scala.Int): String = null
   }
 
-  implicit def liftQuery[T](implicit manifest: Manifest[OShallow.Query[T]]): LiftEvidence[OShallow.Query[T], Query[T]] = new LiftEvidence[OShallow.Query[T], Query[T]] {
-    def lift(v: OShallow.Query[T]): Query[T] = v.asInstanceOf[TransferQuery[T]].underlying
-    def hole(tpe: Manifest[Any], symbolId: scala.Int): Query[T] = null
+  implicit def liftQuery[T, S](implicit manifest: Manifest[OShallow.Query[T]], queryElem: QueryElem[T, S]): LiftEvidence[OShallow.Query[T], Query[S]] = new LiftEvidence[OShallow.Query[T], Query[S]] {
+    def lift(v: OShallow.Query[T]): Query[S] = v.asInstanceOf[TransferQuery[S]].underlying
+    def hole(tpe: Manifest[Any], symbolId: scala.Int): Query[S] = null
   }
 
   //  implicit object LiftQuery extends LiftEvidence[OShallow.Query[scala.Int], Query[scala.Int]] {

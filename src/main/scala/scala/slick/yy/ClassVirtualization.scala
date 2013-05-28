@@ -7,7 +7,7 @@ import scala.slick.typeproviders.MacroHelpers
 import scala.slick.typeproviders.DefaultContextUtils
 import scala.reflect.macros.Universe
 import scala.reflect.api.Mirror
-import scala.collection.mutable.ArrayBuffer
+import scala.collection.mutable.HashSet
 import scala.reflect.macros.Context
 
 trait YYTransformers {
@@ -156,6 +156,14 @@ trait YYTransformers {
       DefDef(Modifiers(Flag.IMPLICIT), newTermName("convColumnImplicit" + yyTableName), List(), List(List(ValDef(Modifiers(PARAM), newTermName("x"), AppliedTypeTree(Ident(repTypeName), List(Ident(newTypeName(table.caseClassName)))), EmptyTree))), Ident(tableTypeName), body)
     }
 
+    //    def queryElemImplicitDef(table: Table)(symbol: Symbol): DefDef = {
+    //      val fromTypeTree = Ident(symbol)
+    //      val toTypeTree = Ident(newTypeName(table.caseClassName))
+    //      val queryElemTypeTree = AppliedTypeTree(Ident(newTypeName("QueryElem")), List(fromTypeTree, toTypeTree))
+    //      val body = Apply(Select(New(queryElemTypeTree), nme.CONSTRUCTOR), List())
+    //      DefDef(Modifiers(Flag.IMPLICIT), newTermName("queryElemImplicit" + table.caseClassName), List(), List(), queryElemTypeTree, body)
+    //    }
+
     def createTypeClassRow(table: Table)(symbol: Symbol): TypeDef = {
       //      println(typeRef(symbol.typeSignature, symbol, Nil).typeSymbol.fullName)
       //      println(typeRef(symbol.typeSignature, symbol, Nil))
@@ -204,7 +212,9 @@ trait YYTransformers {
       val yyTableImplicitModule = createYYTableModule(table)
       val yyRepToTableImplicit = createRepToTableImplicitDef(table)
       val yyColumnToTableImplicit = createColumnToTableImplicitDef(table) // FIXME workaround for join!
+      //      val queryElemImplicit = queryElemImplicitDef(table)(symbol) // for transferable query
       List(caseClassDef, tableClassDef, tableModuleDef, yyTableClassDef, yyTableImplicitModule, yyRepToTableImplicit, yyColumnToTableImplicit)
+      //      List(caseClassDef, tableClassDef, tableModuleDef, yyTableClassDef, yyTableImplicitModule, yyRepToTableImplicit, yyColumnToTableImplicit, queryElemImplicit)
       //      List(typeClassRow, valClassRow, tableClassDef, tableModuleDef, yyTableClassDef, yyTableImplicitModule, yyRepToTableImplicit, yyColumnToTableImplicit)
       //      List(typeClassRow, tableClassDef, tableModuleDef, yyTableClassDef, yyTableImplicitModule, yyRepToTableImplicit, yyColumnToTableImplicit)
       //      List(tableClassDef, tableModuleDef, yyTableClassDef, yyTableImplicitModule, yyRepToTableImplicit, yyColumnToTableImplicit)
@@ -240,26 +250,46 @@ trait YYTransformers {
       val vcc = new VirtualClassCollector()
       vcc.traverse(tree)
       virtualTraverserIsApplied = true
-      virtualSymbols = vcc.collected.distinct.toList
+      virtualSymbols = vcc.collected.toList
       virtualSymbols
     }
   }
 
   private final class VirtualClassCollector extends Traverser {
 
-    private[YYTransformers] val collected = new ArrayBuffer[Symbol]()
+    private[YYTransformers] val collected = new HashSet[Symbol]()
+    private val virtualTypes: List[Type] = {
+      import universe.TypeTag._
+      List(Boolean.tpe, Int.tpe, Long.tpe, Float.tpe, Double.tpe, typeOf[String].normalize)
+    }
+
+    private def isVirtual(tpe: Type): Boolean = {
+      // normalize is used because of String
+      virtualTypes.find(x => (tpe.normalize equals x)).isEmpty
+    }
 
     override def traverse(tree: Tree) = tree match {
-      case TypeApply(Select(shallowTable, TermName("getTable")), List(tpt)) if shallowTable.symbol.typeSignature =:= typeOf[Shallow.Table.type] => {
-        //      case TypeApply(Select(shallowTable, TermName("getTable")), List(tpt)) => {
-        //        println(shallowTable.symbol.typeSignature)
-        //        println(typeOf[Shallow.Table.type].typeSymbol)
-        //        println(shallowTable.symbol.equals(typeOf[Shallow.Table.type].typeSymbol))
-        //        println(new ClassVirtualization().getTableFromSymbol(tpt.symbol))
-        collected += tpt.symbol
-      }
-      case TypeApply(Select(shallowQueryable, TermName("apply")), List(tpt)) if shallowQueryable.symbol.typeSignature =:= typeOf[Shallow.Queryable.type] => {
-        collected += tpt.symbol
+      //      case TypeApply(Select(shallowTable, TermName("getTable")), List(tpt)) if shallowTable.symbol.typeSignature =:= typeOf[Shallow.Table.type] => {
+      //        collected += tpt.symbol
+      //      }
+      //      case TypeApply(Select(shallowQueryable, TermName("apply")), List(tpt)) if shallowQueryable.symbol.typeSignature =:= typeOf[Shallow.Queryable.type] => {
+      //        collected += tpt.symbol
+      //      }
+      case typTree: TypTree if typTree.tpe != null => {
+        def collectVirtuals(tpe: Type) {
+          tpe match {
+            case TypeRef(pre, sym, Nil) => {
+              if (isVirtual(tpe)) {
+                collected += sym
+              }
+            }
+            case TypeRef(pre, sym, args) => {
+              args foreach collectVirtuals
+            }
+            case _ =>
+          }
+        }
+        collectVirtuals(typTree.tpe)
       }
       case _ => super.traverse(tree)
     }

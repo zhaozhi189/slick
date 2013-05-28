@@ -207,13 +207,14 @@ class YYTest {
       q.toSeq
     }
     assertEquals("Query filter == map (_1, _2) of Virtualized++ Table + Annotation", CoffeeNested2(3, "three"), r7.head)
+
     //    val q0 = shallow {
     //      Queryable[CoffeeNested2]
     //    }
     //    val q1 = shallow {
-    //      q0 filter (x => x.idNumber == 3)
+    //      (q0: Query[CoffeeNested2]) filter (x => x.idNumber == 3)
     //    }
-    //    val r8 = shallow {
+    //    val r8 = slickYYVPDebug {
     //      q1.toSeq
     //    }
     //    assertEquals("Query filter == map (_1, _2) of Virtualized++ Table + Annotation", CoffeeNested2(3, "three"), r8.head)
