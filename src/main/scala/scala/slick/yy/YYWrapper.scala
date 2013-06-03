@@ -37,6 +37,8 @@ import scala.slick.profile.BasicDriver
 import scala.slick.driver.JdbcProfile
 import scala.slick.lifted.BaseJoinQuery
 import scala.slick.lifted.SingleColumnQueryExtensionMethods
+import scala.slick.lifted.OptionColumnExtensionMethods
+import scala.slick.lifted.PlainColumnExtensionMethods
 
 trait YYWraper[UT] {
   type NonRep = UT
@@ -85,6 +87,25 @@ object YYValue {
   def apply[T, E <: YYRep[T]](rep: Rep[T]): E = {
     YYValue.applyUntyped(rep).asInstanceOf[E]
   }
+}
+
+class YYOption[T](val column: Column[Option[T]]) extends YYColumn[Option[T]] {
+  override def underlying = column
+  val optionColumnExtension = new OptionColumnExtensionMethods(column)
+
+  //  def getOrElse(default: => YYColumn[T]): YYColumn[T] =
+  def getOrElse[T1](default: => YYColumn[T]): YYColumn[T] =
+    YYColumn(optionColumnExtension.getOrElse(default.getValue))
+  def get: YYColumn[T] =
+    YYColumn(optionColumnExtension.get)
+}
+
+object YYOption {
+  def fromYYColumn[T](yyColumn: YYColumn[Option[T]]): YYOption[T] =
+    new YYOption(yyColumn.underlying)
+
+  def fromPlainColumn[T](column: Column[T]): YYOption[T] =
+    new YYOption(new PlainColumnExtensionMethods(column).?)
 }
 
 trait YYColumn[T] extends ColumnExtensionOps[T] with ColumnNumericExtensionOps[T]
@@ -146,8 +167,13 @@ object YYOrdering extends YYOrderingTuples {
 }
 
 object YYColumn {
-  def apply[T](c: Column[T]): YYColumn[T] = new YYColumn[T] {
-    val column = c
+  def apply[T](c: Column[T]): YYColumn[T] = {
+    c.tpe match {
+      case o: scala.slick.ast.OptionType => new YYOption[Nothing](c.asInstanceOf[Column[Option[Nothing]]]).asInstanceOf[YYColumn[T]]
+      case _ => new YYColumn[T] {
+        val column = c
+      }
+    }
   }
 }
 
@@ -364,9 +390,9 @@ trait QueryOps[T] { self: YYQuery[T] =>
   def length: YYColumn[Int] =
     YYColumn(query.length)
 
-  def groupBy[S](f: YYRep[T] => YYRep[S]): YYQuery[(S, Seq[T])] = {
+  def groupBy[S](f: YYRep[T] => YYRep[S]): YYQuery[(S, scala.slick.yy.Shallow.Query[T])] = {
     val liftedResult = query.groupBy(underlyingProjection(f))(YYShape.ident[S], YYShape.ident[T])
-    YYQuery.fromQuery(liftedResult.asInstanceOf[Query[Rep[(S, Seq[T])], (S, Seq[T])]])
+    YYQuery.fromQuery(liftedResult.asInstanceOf[Query[Rep[(S, scala.slick.yy.Shallow.Query[T])], (S, scala.slick.yy.Shallow.Query[T])]])
   }
 
   def innerJoin[S](q2: YYQuery[S]): YYJoinQuery[T, S] = {
@@ -383,17 +409,23 @@ trait QueryOps[T] { self: YYQuery[T] =>
   }
   def zipWithIndex: YYJoinQuery[T, Long] = YYQuery.fromJoinQuery(query.zipWithIndex)
 }
-// TODO needs option type
-//final class YYSingleColumnQuery[T](val q: YYQuery[T]) extends AnyVal {
-//  def singleColumnQuery = new SingleColumnQueryExtensionMethods[T, T](q.underlying.asInstanceOf[Query[Column[T], T]])
-//  type OptionTM = TypedType[Option[T]]
-//  def min(implicit tm: OptionTM): YYColumn[T] = {
-//    YYColumn(singleColumnQuery.min)
-//  }
-//  def max(implicit tm: OptionTM) = ???
-//  def avg(implicit tm: OptionTM) = ???
-//  def sum(implicit tm: OptionTM) = ???
-//}
+
+final class YYSingleColumnQuery[T](val q: YYQuery[T]) extends AnyVal {
+  def singleColumnQuery = new SingleColumnQueryExtensionMethods[T, T](q.underlying.asInstanceOf[Query[Column[T], T]])
+  type OptionTM = TypedType[Option[T]]
+  def min(implicit tm: OptionTM): YYOption[T] = {
+    new YYOption(singleColumnQuery.min)
+  }
+  def max(implicit tm: OptionTM): YYOption[T] = {
+    new YYOption(singleColumnQuery.max)
+  }
+  def avg(implicit tm: OptionTM): YYOption[T] = {
+    new YYOption(singleColumnQuery.avg)
+  }
+  def sum(implicit tm: OptionTM): YYOption[T] = {
+    new YYOption(singleColumnQuery.sum)
+  }
+}
 
 object YYDebug {
   def apply(a: Any) {

@@ -1,10 +1,10 @@
 package scala.slick.yy
 
 import scala.language.implicitConversions
-import scala.slick.driver.JdbcDriver
-import scala.slick.jdbc.UnitInvoker
-import scala.slick.jdbc.JdbcBackend
 import scala.slick.driver.H2Driver
+import scala.slick.driver.JdbcDriver
+import scala.slick.jdbc.JdbcBackend
+import scala.slick.jdbc.UnitInvoker
 
 object Shallow {
 
@@ -14,13 +14,13 @@ object Shallow {
     def apply[T]: Query[T] = ???
   }
 
-  // TODO needs option type
-  //  implicit class SingleColumnQuery[T <: AnyVal](val query: Query[T]) extends AnyVal {
-  //    def min: T = ???
-  //    def max: T = ???
-  //    def avg: T = ???
-  //    def sum: T = ???
-  //  }
+  // TODO AnyVal is necessary or not
+  implicit class SingleColumnQuery[T <: AnyVal](val query: Query[T]) extends AnyVal {
+    def min: Option[T] = ???
+    def max: Option[T] = ???
+    def avg: Option[T] = ???
+    def sum: Option[T] = ???
+  }
 
   class Query[T] {
     def flatMap[S](projection: T => Query[S]): Query[S] = ???
@@ -30,7 +30,7 @@ object Shallow {
     def length: Int = ???
     def sortBy[S](projection: T => S)(implicit ord: Ordering[S]): Query[T] = ???
     def sorted(implicit ord: Ordering[T]): Query[T] = ???
-    def groupBy[S](f: T => S): Query[(S, Seq[T])] = ???
+    def groupBy[S](f: T => S): Query[(S, Shallow.Query[T])] = ???
     def innerJoin[S](q2: Query[S]): JoinQuery[T, S] = ???
     def zip[S](q2: Query[S]): JoinQuery[T, S] = ???
     def zipWithIndex: JoinQuery[T, Long] = ???
@@ -50,6 +50,7 @@ object Shallow {
   implicit def stringWrapper(value: String): ColumnOps[String] =
     new ColumnOps(value)
 
+  // FIXME operations for Int, Float, String, Double, and Boolean should be separated
   implicit class ColumnOps[T](val value: T) extends AnyVal {
     //    def abs: T = ??? // there's no need for it, intWrapper is handling it
     def ceil: T = ???
@@ -74,6 +75,16 @@ object Shallow {
 
   object Table {
     def getTable[S]: Table[S] = ???
+  }
+
+  //  class Opt[T](val value: T) {
+  //    //    def ? : Opt[T] = ???
+  //    def getOrElse(default: => T): T = ???
+  //    def get: T = ???
+  //  }
+
+  implicit class OptMaker[T](val value: T) {
+    def ? : Option[T] = ???
   }
 
   object TestH2 {

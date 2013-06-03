@@ -44,8 +44,13 @@ trait YYSlickCake extends YYSlickCakeTuples with YYSlickLowPriorityImplicits {
   implicit def yyRepDoubleToColumnOps(x: CakeRep[scala.Double]): Double =
     x.asInstanceOf[Double]
 
-  implicit def yyRepSeqToQuery[T](x: CakeRep[scala.Seq[T]]): Query[T] =
+  //  implicit def yyRepSeqToQuery[T](x: CakeRep[scala.Seq[T]]): Query[T] =
+  //    x.asInstanceOf[Query[T]]
+  implicit def yyRepSQueryToQuery[T](x: CakeRep[scala.slick.yy.Shallow.Query[T]]): Query[T] =
     x.asInstanceOf[Query[T]]
+
+  implicit def yyColumnOptionToYYOption[T](x: YYColumn[Option[T]]): YYOption[T] =
+    YYOption.fromYYColumn(x)
 
   object Queryable {
     def apply[T](implicit t: YYTable[T]): Query[T] = YYQuery.apply(t)
@@ -61,6 +66,22 @@ trait YYSlickCake extends YYSlickCakeTuples with YYSlickLowPriorityImplicits {
       def apply[T](value: YYColumn[T]): YYColumn[T] = value
     }
     def stringWrapper(value: String): String = value
+    class OptMaker[T](val value: YYColumn[T]) {
+      def ? : YYOption[T] = YYOption.fromPlainColumn(value.underlying)
+    }
+    object OptMaker {
+      def apply[T](value: YYColumn[T]): OptMaker[T] =
+        new OptMaker(value)
+    }
+    object SingleColumnQuery {
+      def apply[T](value: YYQuery[T]): YYSingleColumnQuery[T] =
+        new YYSingleColumnQuery(value)
+    }
+  }
+
+  object scalaYY extends scalaYYTuples {
+    type Query[T] = scala.slick.yy.Shallow.Query[T]
+    type Option[T] = scala.Option[T]
   }
 
   def intWrapper(value: Int): Int = value

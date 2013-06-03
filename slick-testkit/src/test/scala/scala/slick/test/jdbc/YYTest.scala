@@ -518,6 +518,7 @@ class YYTest {
     //      q4.foreach(x => println("  " + x))
     //      assertEquals(List((1, 0), (2, 1), (3, 2), (4, 3), (5, 2)), q4.map(p => p._1 ~ p._2).list)
     //    }
+    DatabaseHandler.closeSession
   }
 
   @Test
@@ -593,6 +594,7 @@ class YYTest {
     }
     //    q2.foreach(x => println("  " + x))
     assertEquals(List((1, -1), (2, 1), (3, 2), (4, 2)), q3.toList)
+    DatabaseHandler.closeSession
   }
 
   @Test
@@ -636,6 +638,69 @@ class YYTest {
     }
     val rt: List[(Int, Int)] = r.toList
     assertEquals(List((1, 3), (2, 3), (3, 2)), rt)
+
+    val r2 = shallow {
+      (
+        (for {
+          (k, v) <- Queryable[T3].groupBy(t => t.a)
+        } yield (k, v.length, v.map(_.a).sum, v.map(_.b).sum)).sortBy(_._1)
+      ).toSeq
+    }
+    val r2t: List[(Int, Int, Option[Int], Option[Int])] = r2.toList
+    assertEquals(List((1, 3, Some(3), Some(6)), (2, 3, Some(6), Some(8)), (3, 2, Some(6), Some(10))), r2t)
+    DatabaseHandler.closeSession
+  }
+
+  @Test
+  def testOption = {
+    import Shallow.TestH2._
+    val inMemT3 = List((1, Some(1)), (-1, Some(2)), (1, Some(3)),
+      (2, Some(1)), (2, Some(2)), (-2, Some(5)),
+      (-3, Some(1)), (3, None)
+    )
+
+    {
+      import scala.slick.driver.H2Driver.simple._
+      object T extends Table[(Int, Option[Int])]("t3") {
+        def a = column[Int]("a")
+        def b = column[Option[Int]]("b")
+        def * = a ~ b
+      }
+      T.ddl.create
+      T.insertAll(inMemT3: _*)
+    }
+    @Entity("t3") case class T3(@Entity("a") a: Int, @Entity("b") b: Option[Int])
+    import Shallow._
+    val r0 = shallow {
+      Queryable[T3].map(x => (x.a, x.b)).toSeq
+    }
+    assertEquals(inMemT3, r0.toList)
+    val r1 = shallow {
+      Queryable[T3].map(x => (x.a, x.b.getOrElse(0))).toSeq
+    }
+    assertEquals(inMemT3 map {
+      case (_1, _2) => (_1, _2.getOrElse(0))
+    }, r1.toList)
+    assertEquals(inMemT3, r0.toList)
+    val r2 = shallow {
+      Queryable[T3].map(x => (x.a.?, x.b.getOrElse(0))).toSeq
+    }
+    assertEquals(inMemT3 map {
+      case (_1, _2) => (Some(_1), _2.getOrElse(0))
+    }, r2.toList)
+    val r3 = shallow {
+      Queryable[T3].map(x => (x.a.?.getOrElse(3), x.b.getOrElse(0))).toSeq
+    }
+    assertEquals(inMemT3 map {
+      case (_1, _2) => (_1, _2.getOrElse(0))
+    }, r3.toList)
+    val r4 = shallow {
+      Queryable[T3].map(x => (x.a.?.toRadians, x.b.getOrElse(0))).toSeq
+    }
+    assertEquals(inMemT3 map {
+      case (_1, _2) => (Some(0), _2.getOrElse(0))
+    }, r4.toList)
+    DatabaseHandler.closeSession
   }
 
   def initCoffeeTable() {
