@@ -16,40 +16,40 @@ trait SlickYinYang extends scala.slick.driver.JdbcDriver.ImplicitJdbcTypes with 
 
     val result = main()
 
-    def convertResultElementToSeq(elem: Any): Seq[Any] =
-      elem.asInstanceOf[Product].productIterator.toSeq
-
-    def convertResultElementToNewElement(tpe: ru.Type)(elem: Any): Any = {
-      val cm = try {
-        m.reflectModule(tpe.typeSymbol.companionSymbol.asModule)
-      } catch {
-        case _: ScalaReflectionException => {
-          //          val moduleSymbol = tpe.typeSymbol.companionSymbol.asModule
-          //
-          //          @tailrec
-          //          def findStaticOwner(symbol: ru.Symbol): ru.Symbol = {
-          //            val owner = symbol.owner
-          //            if (owner.isStatic)
-          //              owner
-          //            else
-          //              findStaticOwner(owner)
-          //          }
-          //
-          //          val owner = findStaticOwner(moduleSymbol)
-          //
-          //          val cls = m.reflectClass(owner.typeSignature.typeSymbol.asClass)
-          //          val ctor = cls.reflectConstructor(owner.typeSignature.declaration(ru.nme.CONSTRUCTOR).asMethod)
-          //          val mm = m.reflect(ctor())
-          //          mm.reflectModule(moduleSymbol)
-          throw new SlickException("Nested case class in an object is not supported!")
-        }
-      }
-      val app = cm.symbol.asModule.typeSignature.declaration(ru.newTermName("apply")).asMethod
-      val mm = m.reflect(cm.instance)
-      val appRef = mm.reflectMethod(app)
-      val res = appRef(convertResultElementToSeq(elem): _*)
-      res
-    }
+    //    def convertResultElementToSeq(elem: Any): Seq[Any] =
+    //      elem.asInstanceOf[Product].productIterator.toSeq
+    //
+    //    def convertResultElementToNewElement(tpe: ru.Type)(elem: Any): Any = {
+    //      val cm = try {
+    //        m.reflectModule(tpe.typeSymbol.companionSymbol.asModule)
+    //      } catch {
+    //        case _: ScalaReflectionException => {
+    //          //          val moduleSymbol = tpe.typeSymbol.companionSymbol.asModule
+    //          //
+    //          //          @tailrec
+    //          //          def findStaticOwner(symbol: ru.Symbol): ru.Symbol = {
+    //          //            val owner = symbol.owner
+    //          //            if (owner.isStatic)
+    //          //              owner
+    //          //            else
+    //          //              findStaticOwner(owner)
+    //          //          }
+    //          //
+    //          //          val owner = findStaticOwner(moduleSymbol)
+    //          //
+    //          //          val cls = m.reflectClass(owner.typeSignature.typeSymbol.asClass)
+    //          //          val ctor = cls.reflectConstructor(owner.typeSignature.declaration(ru.nme.CONSTRUCTOR).asMethod)
+    //          //          val mm = m.reflect(ctor())
+    //          //          mm.reflectModule(moduleSymbol)
+    //          throw new SlickException("Nested case class in an object is not supported!")
+    //        }
+    //      }
+    //      val app = cm.symbol.asModule.typeSignature.declaration(ru.newTermName("apply")).asMethod
+    //      val mm = m.reflect(cm.instance)
+    //      val appRef = mm.reflectMethod(app)
+    //      val res = appRef(convertResultElementToSeq(elem): _*)
+    //      res
+    //    }
 
     val manifest = implicitly[Manifest[T]]
     val ttag = ru.manifestToTypeTag(m, manifest).asInstanceOf[ru.TypeTag[T]]
@@ -61,17 +61,17 @@ trait SlickYinYang extends scala.slick.driver.JdbcDriver.ImplicitJdbcTypes with 
     val newRes =
       if (resType <:< seqType) {
         val tpe = resType.args.head
-        if (tpe.typeSymbol.asClass.isCaseClass)
-          result.asInstanceOf[Seq[_]] map convertResultElementToNewElement(tpe)
-        else
-          result
+        //        if (tpe.typeSymbol.asClass.isCaseClass)
+        //          result.asInstanceOf[Seq[_]] map convertResultElementToNewElement(tpe)
+        //        else
+        result
       } else if (resType <:< queryType) {
         new TransferQuery(result.asInstanceOf[YYQuery[_]])
       } else {
-        if (resType.typeSymbol.asClass.isCaseClass)
-          convertResultElementToNewElement(resType)(result)
-        else
-          result
+        //        if (resType.typeSymbol.asClass.isCaseClass)
+        //          convertResultElementToNewElement(resType)(result)
+        //        else
+        result
       }
     newRes.asInstanceOf[T]
   }
@@ -93,7 +93,7 @@ trait TransferCake { self: SlickYinYang =>
   class QueryElem[T, S]
 
   implicit def queryElemAnyVal[T <: AnyVal]: QueryElem[T, T] = new QueryElem[T, T]
-  implicit def queryElemCaseClass[T <: Product with Serializable]: QueryElem[T, T] = new QueryElem[T, T] {}
+  implicit def queryElemCaseClass[T <: Product with Serializable]: QueryElem[T, T] = new QueryElem[T, T]
 }
 
 //trait ImplicitSlickYinYang extends SlickYinYang {
