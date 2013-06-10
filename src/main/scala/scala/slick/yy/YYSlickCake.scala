@@ -79,6 +79,10 @@ trait YYSlickCake extends YYSlickCakeTuples with YYSlickLowPriorityImplicits {
       def apply[T](value: YYQuery[T]): YYSingleColumnQuery[T] =
         new YYSingleColumnQuery(value)
     }
+    def nonesFirst[T]: YYOrdering[Option[T]] = YYOrdering.nonesFirst
+    def nonesLast[T]: YYOrdering[Option[T]] = YYOrdering.nonesLast
+    def nullsFirst[T]: YYOrdering[T] = YYOrdering.nullsFirst
+    def nullsLast[T]: YYOrdering[T] = YYOrdering.nullsLast
   }
 
   object scalaYY extends scalaYYTuples {

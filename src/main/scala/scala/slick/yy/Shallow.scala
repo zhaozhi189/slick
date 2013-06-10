@@ -22,6 +22,11 @@ object Shallow {
     def sum: Option[T] = ???
   }
 
+  def nonesFirst[T]: Ordering[Option[T]] = ???
+  def nonesLast[T]: Ordering[Option[T]] = ???
+  def nullsFirst[T]: Ordering[T] = ???
+  def nullsLast[T]: Ordering[T] = ???
+
   class Query[T] {
     def flatMap[S](projection: T => Query[S]): Query[S] = ???
     def map[S](projection: T => S): Query[S] = ???
@@ -33,6 +38,7 @@ object Shallow {
     def groupBy[S](f: T => S): Query[(S, Shallow.Query[T])] = ???
     def innerJoin[S](q2: Query[S]): JoinQuery[T, S] = ???
     def leftJoin[S](q2: Query[S]): JoinQuery[T, S] = ???
+    def rightJoin[S](q2: Query[S]): JoinQuery[T, S] = ???
     def zip[S](q2: Query[S]): JoinQuery[T, S] = ???
     def zipWithIndex: JoinQuery[T, Long] = ???
     def take(i: Int): Query[T] = ???

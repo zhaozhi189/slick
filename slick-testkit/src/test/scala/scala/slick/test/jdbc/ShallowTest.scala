@@ -12,9 +12,9 @@ import scala.slick.SlickException
 import scala.slick.yy._
 import ch.qos.logback.core.pattern.util.AsIsEscapeUtil
 
-object ShallowTest extends DBTestObject(TestDBs.H2Mem, TestDBs.H2Disk, TestDBs.HsqldbMem, TestDBs.HsqldbDisk, TestDBs.SQLiteMem, TestDBs.SQLiteDisk, TestDBs.DerbyMem, TestDBs.DerbyDisk)
+object ShallowTest extends DBTestObject(TestDBs.H2Mem, TestDBs.H2Disk, TestDBs.HsqldbMem, TestDBs.HsqldbDisk, TestDBs.SQLiteMem, TestDBs.SQLiteDisk /*, TestDBs.DerbyMem, TestDBs.DerbyDisk*/ )
 
-@Entity("COFFEES") case class Coffee(@Entity("COF_NAME") name: String, sales: Int)
+@Entity("COFFEES") case class Coffee(@Entity("COF_NAME") name: String, sales: Int, flavor: Option[String])
 //class Foo[T]( val q : Queryable[T] )
 //
 //@table(name="COFFEES")
@@ -125,31 +125,35 @@ class ShallowTest(val tdb: TestDB) extends DBTest {
     //    val q1 = qoo.map( _.sales + 5 )
   }
 
+  def initialStringOptionOrdering = implicitly[Ordering[Option[String]]]
+
   @Test def test() {
-    //    implicit var stringOptionOrdering: scala.math.Ordering[Option[String]] = initialStringOptionOrdering
+    implicit var stringOptionOrdering: scala.math.Ordering[Option[String]] = initialStringOptionOrdering
 
     import TestingTools._
 
     val coffees_data = Vector(
-      ("Colombian", 1),
-      ("French_Roast", 2),
-      ("Espresso", 3),
-      ("Espresso", 4),
-      ("Colombian_Decaf", 1),
-      ("Colombian_Decaf", 3),
-      ("French_Roast_Decaf", 5))
+      ("Colombian", 1, None),
+      ("French_Roast", 2, None),
+      ("Espresso", 3, Some("Honey")),
+      ("Espresso", 3, Some("Vanilla")),
+      ("Espresso", 4, None),
+      ("Colombian_Decaf", 1, None),
+      ("Colombian_Decaf", 3, Some("White Chocolate")),
+      ("French_Roast_Decaf", 5, None)
+    )
 
     {
       // create test table
-      sqlu"create table COFFEES(COF_NAME varchar(255), SALES int)".execute
+      sqlu"create table COFFEES(COF_NAME varchar(255), SALES int, FLAVOR varchar(255) NULL)".execute
       (for {
-        (name, sales) <- coffees_data
-      } yield sqlu"insert into COFFEES values ($name, $sales)".first).sum
+        (name, sales, flavor) <- coffees_data
+      } yield sqlu"insert into COFFEES values ($name, $sales, $flavor)".first).sum
 
       // FIXME: reflective typecheck failed:  backend.result(Queryable[Coffee].map(x=>x))
 
       // setup query and equivalent inMemory data structure
-      val inMem = coffees_data.map { case (name, sales) => Coffee(name, sales) }
+      val inMem = coffees_data.map { case (name, sales, flavor) => Coffee(name, sales, flavor) }
       import Shallow._
       val query = shallow {
         Queryable[Coffee].toSeq
@@ -382,9 +386,6 @@ class ShallowTest(val tdb: TestDB) extends DBTest {
       assertMatchOrdered(inMem.sortBy(c => (c.name, c.sales))(Ordering.Tuple2(Ordering[String], Ordering[Int].reverse)),
         shallow { Queryable[Coffee].sortBy(c => (c.name, c.sales))(Ordering.Tuple2(Ordering[String], Ordering[Int].reverse)).toSeq })
 
-      /*
-
-
       def nullOrdering(x: Int, y: Int) = new scala.math.Ordering[Option[String]] {
         def compare(a: Option[String], b: Option[String]) = {
           if (a == None && b == None) 0
@@ -394,9 +395,12 @@ class ShallowTest(val tdb: TestDB) extends DBTest {
         }
       }
 
+      /*
       stringOptionOrdering = nullOrdering(-1, 1)
-      assertMatchOrdered(
-        query.sortBy(c => (nonesLast(c.flavor), c.name)), inMem.sortBy(c => (c.flavor, c.name)))
+      assertMatchOrdered(inMem.sortBy(c => (c.flavor, c.name)),
+        shallow {
+          Queryable[Coffee].sortBy(c => (c.flavor))(nonesLast[String]).toSeq
+        })
 
       stringOptionOrdering = nullOrdering(1, 1)
       assertMatchOrdered(

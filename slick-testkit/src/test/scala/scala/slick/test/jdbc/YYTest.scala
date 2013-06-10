@@ -518,7 +518,6 @@ class YYTest {
       val q2 = q1.map(x => (x._2.id, x._1.id))
       q2.toSeq
     }
-    //    q2.foreach(x => println("  " + x))
     assertEquals(List((2, 1), (3, 2), (4, 3), (5, 2)), q2.toList)
 
     //    val q3 = (for {
@@ -528,20 +527,27 @@ class YYTest {
     //    q3.foreach(x => println("  " + x))
     //    assertEquals(List((0, 4), (2, 1), (3, 2), (4, 3), (5, 2)), q3.map(p => p._1 ~ p._2).list)
     //
-    //    val q3 = shallowDebug {
-    //      (for {
-    //        (c, p) <- Queryable[Categories] leftJoin Queryable[Posts] on (_.id == _.category)
-    //      } yield (p.id.?.getOrElse(0), c.id)) /*.sortBy(_._1.nullsFirst) .map(_._2)*/ .toSeq
-    //    }
-    //    //    println("Left outer join (nulls first): " + q3.selectStatement)
-    //    //    q3.foreach(x => println("  " + x))
-    //    assertEquals(List((0, 4), (2, 1), (3, 2), (4, 3), (5, 2)), q3.toList)
+
+    val q3 = shallow {
+      (for {
+        (c, p) <- Queryable[Categories] leftJoin Queryable[Posts] on (_.id == _.category)
+      } yield (p.id, (p.id.?.getOrElse(0), c.id, c.name, p.title.?.getOrElse("")))).sortBy(x => x._1)(nullsFirst).map(_._2).map(x => (x._1, x._2)).toSeq
+    }
+    assertEquals(List((0, 4), (2, 1), (3, 2), (4, 3), (5, 2)), q3.toList)
 
     //    val q3a = (for {
     //      (c, p) <- Categories leftJoin Posts on (_.id is _.category)
     //    } yield p.id ~ c.id ~ c.name ~ p.title).sortBy(_._1.nullsFirst)
     //    assertFail(println("q3a result: " + q3a.list)) // reads NULL from non-nullable column
     //
+    assertFail {
+      shallow {
+        (for {
+          (c, p) <- Queryable[Categories] leftJoin Queryable[Posts] on (_.id == _.category)
+        } yield (p.id, c.id, c.name, p.title)).sortBy(_._1)(nullsFirst).toSeq
+      }
+    }
+
     //    val q3b = (for {
     //      (c, p) <- Categories leftJoin Posts on (_.id is _.category)
     //    } yield (p.id, p.id.?.getOrElse(0) ~ c.id ~ c.name ~ p.title.?.getOrElse(""))).sortBy(_._1.nullsLast).map(_._2)
@@ -549,6 +555,13 @@ class YYTest {
     //    q3b.foreach(x => println("  " + x))
     //    assertEquals(List((2, 1), (3, 2), (4, 3), (5, 2), (0, 4)), q3b.map(p => p._1 ~ p._2).list)
     //
+    val q3b = shallow {
+      (for {
+        (c, p) <- Queryable[Categories] leftJoin Queryable[Posts] on (_.id == _.category)
+      } yield (p.id, (p.id.?.getOrElse(0), c.id, c.name, p.title.?.getOrElse("")))).sortBy(_._1)(nullsLast).map(_._2).map(x => (x._1, x._2)).toSeq
+    }
+    assertEquals(List((2, 1), (3, 2), (4, 3), (5, 2), (0, 4)), q3b.toList)
+
     //    ifCap(scap.joinRight) {
     //      val q4 = (for {
     //        (c, p) <- Categories rightJoin Posts on (_.id is _.category)
@@ -557,6 +570,12 @@ class YYTest {
     //      q4.foreach(x => println("  " + x))
     //      assertEquals(List((1, 0), (2, 1), (3, 2), (4, 3), (5, 2)), q4.map(p => p._1 ~ p._2).list)
     //    }
+    val q4 = shallow {
+      (for {
+        (c, p) <- Queryable[Categories] rightJoin Queryable[Posts] on (_.id == _.category)
+      } yield (p.id, c.id.?.getOrElse(0), c.name.?.getOrElse(""), p.title)).sortBy(_._1).map(x => (x._1, x._2)).toSeq
+    }
+    assertEquals(List((1, 0), (2, 1), (3, 2), (4, 3), (5, 2)), q4.toList)
     DatabaseHandler.closeSession
   }
 
@@ -782,6 +801,17 @@ class YYTest {
       Coffee.insert((10, "ten"))
     }
     Test
+  }
+
+  def assertFail(f: => Unit) = {
+    var succeeded = false
+    try {
+      f
+      succeeded = true
+    } catch {
+      case e: Exception if !scala.util.control.Exception.shouldRethrow(e) =>
+    }
+    if (succeeded) fail("Exception expected")
   }
 
   val DatabaseHandler = Shallow.TestH2

@@ -149,6 +149,45 @@ object YYOrdering extends YYOrderingTuples {
     }
   }
 
+  def nonesFirst[T]: YYOrdering[Option[T]] = {
+    new YYOrdering[Option[T]](null) {
+      override def toOrdered(x: Rep[Option[T]]): LOrdered = {
+        x match {
+          case column: Column[_] => column.asc.nullsFirst
+        }
+      }
+    }
+  }
+
+  def nonesLast[T]: YYOrdering[Option[T]] = {
+    new YYOrdering[Option[T]](null) {
+      override def toOrdered(x: Rep[Option[T]]): LOrdered = {
+        x match {
+          case column: Column[_] => column.asc.nullsLast
+        }
+      }
+    }
+  }
+  def nullsFirst[T]: YYOrdering[T] = {
+    new YYOrdering[T](null) {
+      override def toOrdered(x: Rep[T]): LOrdered = {
+        x match {
+          case column: Column[_] => column.asc.nullsFirst
+        }
+      }
+    }
+  }
+
+  def nullsLast[T]: YYOrdering[T] = {
+    new YYOrdering[T](null) {
+      override def toOrdered(x: Rep[T]): LOrdered = {
+        x match {
+          case column: Column[_] => column.asc.nullsLast
+        }
+      }
+    }
+  }
+
   def repToOrdered[T](rep: Rep[T]): LOrdered = {
     rep match {
       case column: Column[T] => column.asc
@@ -405,6 +444,9 @@ trait QueryOps[T] { self: YYQuery[T] =>
     YYQuery.fromJoinQuery(query.leftJoin(q2.query))
   }
   //  def rightJoin[E2, U2](q2: Query[E2, U2]) = join(q2, JoinType.Right)
+  def rightJoin[S](q2: YYQuery[S]): YYJoinQuery[T, S] = {
+    YYQuery.fromJoinQuery(query.rightJoin(q2.query))
+  }
   //  def outerJoin[E2, U2](q2: Query[E2, U2]) = join(q2, JoinType.Outer)
   def zip[S](q2: YYQuery[S]): YYJoinQuery[T, S] = {
     //    YYQuery.fromJoinQuery(query.zip(q2.query).asInstanceOf[Query[Rep[(T, S)], (T, S)]])
