@@ -215,12 +215,13 @@ trait YYTransformers {
       val yyTableClassDef = createYYTableClass(table)
       val yyTableImplicitModule = createYYTableModule(table)
       val yyRepToTableImplicit = createRepToTableImplicitDef(table)
-      val yyColumnToTableImplicit = createColumnToTableImplicitDef(table) // FIXME workaround for join!
+      //      val yyColumnToTableImplicit = createColumnToTableImplicitDef(table) // FIXME workaround for join!
       //      val queryElemImplicit = queryElemImplicitDef(table)(symbol) // for transferable query
       //      List(caseClassDef, tableClassDef, tableModuleDef, yyTableClassDef, yyTableImplicitModule, yyRepToTableImplicit, yyColumnToTableImplicit)
       //      List(caseClassDef, tableClassDef, tableModuleDef, yyTableClassDef, yyTableImplicitModule, yyRepToTableImplicit, yyColumnToTableImplicit, queryElemImplicit)
       //      val res = List(typeClassRow, valClassRow, tableClassDef, tableModuleDef, yyTableClassDef, yyTableImplicitModule, yyRepToTableImplicit, yyColumnToTableImplicit)
-      List(typeClassRow, valClassRow, tableClassDef, tableModuleDef, yyTableClassDef, yyTableImplicitModule, yyRepToTableImplicit, yyColumnToTableImplicit)
+      //      List(typeClassRow, valClassRow, tableClassDef, tableModuleDef, yyTableClassDef, yyTableImplicitModule, yyRepToTableImplicit, yyColumnToTableImplicit)
+      List(typeClassRow, valClassRow, tableClassDef, tableModuleDef, yyTableClassDef, yyTableImplicitModule, yyRepToTableImplicit)
       //      List(typeClassRow, tableClassDef, tableModuleDef, yyTableClassDef, yyTableImplicitModule, yyRepToTableImplicit, yyColumnToTableImplicit)
       //      List(tableClassDef, tableModuleDef, yyTableClassDef, yyTableImplicitModule, yyRepToTableImplicit, yyColumnToTableImplicit)
       //      if (!YYCache.hasCache(symbol)) {

@@ -40,12 +40,12 @@ import scala.slick.lifted.SingleColumnQueryExtensionMethods
 import scala.slick.lifted.OptionColumnExtensionMethods
 import scala.slick.lifted.PlainColumnExtensionMethods
 
-trait YYWraper[UT] {
+trait YYWrapper[UT] {
   type NonRep = UT
   def underlying: Rep[UT]
 }
 
-trait YYRep[T] extends YYWraper[T]
+trait YYRep[T] extends YYWrapper[T]
 
 object YYValue {
   def fromLifted[T](rep: Any): YYRep[T] =
@@ -401,6 +401,9 @@ trait QueryOps[T] { self: YYQuery[T] =>
 
   // TODO needs option type
   //  def leftJoin[E2, U2](q2: Query[E2, U2]) = join(q2, JoinType.Left)
+  def leftJoin[S](q2: YYQuery[S]): YYJoinQuery[T, S] = {
+    YYQuery.fromJoinQuery(query.leftJoin(q2.query))
+  }
   //  def rightJoin[E2, U2](q2: Query[E2, U2]) = join(q2, JoinType.Right)
   //  def outerJoin[E2, U2](q2: Query[E2, U2]) = join(q2, JoinType.Outer)
   def zip[S](q2: YYQuery[S]): YYJoinQuery[T, S] = {

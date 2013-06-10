@@ -43,6 +43,8 @@ trait YYSlickCake extends YYSlickCakeTuples with YYSlickLowPriorityImplicits {
     x.asInstanceOf[String]
   implicit def yyRepDoubleToColumnOps(x: CakeRep[scala.Double]): Double =
     x.asInstanceOf[Double]
+  //  implicit def yyRepProductToColumnOps[T <: Product](x: CakeRep[T]): Column[T] =
+  //    x.asInstanceOf[Column[T]]
 
   //  implicit def yyRepSeqToQuery[T](x: CakeRep[scala.Seq[T]]): Query[T] =
   //    x.asInstanceOf[Query[T]]
@@ -104,7 +106,7 @@ trait YYSlickCake extends YYSlickCakeTuples with YYSlickLowPriorityImplicits {
 }
 
 trait YYSlickLowPriorityImplicits {
-  // These two implicits are needed for the cake to be type chacked!
+  // These two implicits are needed for the cake to be type checked!
 
   // Type of this one is JdbcProfile and not JdbcDriver in order to make it lower priority in comparison with the implicit driver which will
   // provided by the user. If type of this one is JdbcDriver, we would get 'ambiguous implicit' error. 

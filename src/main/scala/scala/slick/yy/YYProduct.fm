@@ -20,6 +20,7 @@ object YYProjection {
       <#list 2..N as i>
       case tup: Projection${i}[<#list 1..i as j>_<#if i != j>,</#if></#list>] => apply(tup)
       </#list>
+      case _ => YYTuple.fromMixedTuple[Product](rep.asInstanceOf[Product]).asInstanceOf[YYProjection[T]]
     }
   }
 
@@ -107,6 +108,11 @@ trait YYSlickCakeTuples { self: YYSlickCake =>
 
   <#list 2..N as i>
   object Tuple${i} {
+    def apply[<#list 1..i as j>T${j}<#if i != j>,</#if></#list>](<#list 1..i as j>_${j}: CakeRep[T${j}]<#if i != j>,</#if></#list>) = 
+      if (<#list 1..i as j>_${j}.isInstanceOf[Column[_]]<#if i != j>&&</#if></#list>)
+        YYProjection.fromYY(<#list 1..i as j>_${j}.asInstanceOf[Column[T${j}]]<#if i != j>,</#if></#list>)
+      else
+        YYTuple.fromYY(<#list 1..i as j>_${j}<#if i != j>,</#if></#list>)
     def apply[<#list 1..i as j>T${j}<#if i != j>,</#if></#list>](<#list 1..i as j>_${j}: Column[T${j}]<#if i != j>,</#if></#list>) = YYProjection.fromYY(<#list 1..i as j>_${j}<#if i != j>,</#if></#list>)
     def unapply[<#list 1..i as j>T${j}<#if i != j>,</#if></#list>](tup: Tuple${i}[<#list 1..i as j>T${j}<#if i != j>,</#if></#list>]): Option[(<#list 1..i as j>YYRep[T${j}]<#if i != j>,</#if></#list>)] = Some((<#list 1..i as j>tup._${j}<#if i != j>,</#if></#list>))
   }

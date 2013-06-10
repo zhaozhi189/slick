@@ -12,9 +12,9 @@ package object yy {
   def shallowDebug[T](block: => T): T = macro implementations.slickYYVPDebug[T]
   def slickI[T](block: JdbcDriver => JdbcBackend#Session => T)(implicit driver: JdbcDriver, session: JdbcBackend#Session): T = macro implementations.slickYYVPImplicit[T]
   //  def slickYYImplicit[T](s: JdbcBackend#Session)(block: => T): T = macro implementations.slickYYImplicit[T]
-  def slickYYImplicit[T](block: JdbcDriver => JdbcBackend#Session => T)(implicit driver: JdbcDriver, session: JdbcBackend#Session): T = //    val res = slickYY(block)
+  def slickYYImplicit[T](block: JdbcDriver => JdbcBackend#Session => T)(implicit driver: JdbcDriver, session: JdbcBackend#Session): T = macro implementations.slickYYImplicit[T]
+  //    val res = slickYY(block)
   //    res(driver)(session)
-  macro implementations.slickYYImplicit[T]
   def slickYY[T](block: => T): T = macro implementations.slickYY[T]
   def slickYYDebug[T](block: => T): T = macro implementations.slickYYDebug[T]
   def slickYYV[T](block: => T): T = macro implementations.slickYYV[T]

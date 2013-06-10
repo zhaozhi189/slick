@@ -386,6 +386,11 @@ class YYTest {
       q1.toSeq
     }
     assertEquals("Query forComprehension filter == map (_1, _2) of Table + Annotation + (_1, _2) <-", List((3, "three")), r7.toList)
+    val r9 = shallow {
+      val q1 = for (x <- Queryable[Coff]) yield (x.idNumber, (x.idNumber, x.name))
+      q1.toSeq
+    }
+    assertEquals("Query forComprehension map NestedTuples (_1, (_1, _2)) filter of Table + Annotation", List((1, (1, "one")), (2, (2, "two")), (3, (3, "three")), (10, (10, "ten"))), r9.toList)
     DatabaseHandler.closeSession
   }
   @Test
@@ -523,6 +528,15 @@ class YYTest {
     //    q3.foreach(x => println("  " + x))
     //    assertEquals(List((0, 4), (2, 1), (3, 2), (4, 3), (5, 2)), q3.map(p => p._1 ~ p._2).list)
     //
+    //    val q3 = shallowDebug {
+    //      (for {
+    //        (c, p) <- Queryable[Categories] leftJoin Queryable[Posts] on (_.id == _.category)
+    //      } yield (p.id.?.getOrElse(0), c.id)) /*.sortBy(_._1.nullsFirst) .map(_._2)*/ .toSeq
+    //    }
+    //    //    println("Left outer join (nulls first): " + q3.selectStatement)
+    //    //    q3.foreach(x => println("  " + x))
+    //    assertEquals(List((0, 4), (2, 1), (3, 2), (4, 3), (5, 2)), q3.toList)
+
     //    val q3a = (for {
     //      (c, p) <- Categories leftJoin Posts on (_.id is _.category)
     //    } yield p.id ~ c.id ~ c.name ~ p.title).sortBy(_._1.nullsFirst)

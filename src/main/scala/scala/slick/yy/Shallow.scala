@@ -32,6 +32,7 @@ object Shallow {
     def sorted(implicit ord: Ordering[T]): Query[T] = ???
     def groupBy[S](f: T => S): Query[(S, Shallow.Query[T])] = ???
     def innerJoin[S](q2: Query[S]): JoinQuery[T, S] = ???
+    def leftJoin[S](q2: Query[S]): JoinQuery[T, S] = ???
     def zip[S](q2: Query[S]): JoinQuery[T, S] = ???
     def zipWithIndex: JoinQuery[T, Long] = ???
     def take(i: Int): Query[T] = ???
