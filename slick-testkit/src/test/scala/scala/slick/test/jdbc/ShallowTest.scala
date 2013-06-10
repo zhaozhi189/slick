@@ -395,32 +395,39 @@ class ShallowTest(val tdb: TestDB) extends DBTest {
         }
       }
 
-      /*
       stringOptionOrdering = nullOrdering(-1, 1)
       assertMatchOrdered(inMem.sortBy(c => (c.flavor, c.name)),
         shallow {
-          Queryable[Coffee].sortBy(c => (c.flavor))(nonesLast[String]).toSeq
+          Queryable[Coffee].sortBy(c => (c.flavor, c.name))(Ordering.Tuple2(nonesLast[String], Ordering.String)).toSeq
         })
 
       stringOptionOrdering = nullOrdering(1, 1)
-      assertMatchOrdered(
-        query.sortBy(c => (nonesFirst(c.flavor), c.name)), inMem.sortBy(c => (c.flavor, c.name)))
+      assertMatchOrdered(inMem.sortBy(c => (c.flavor, c.name)),
+        shallow {
+          Queryable[Coffee].sortBy(c => (c.flavor, c.name))(Ordering.Tuple2(nonesFirst[String], Ordering.String)).toSeq
+        })
 
       stringOptionOrdering = nullOrdering(-1, -1)
-      assertMatchOrdered(
-        query.sortBy(c => (nonesLast(reversed(c.flavor)), c.name)), inMem.sortBy(c => (c.flavor, c.name)))
+      assertMatchOrdered(inMem.sortBy(c => (c.flavor, c.name)),
+        shallow {
+          Queryable[Coffee].sortBy(c => (c.flavor, c.name))(Ordering.Tuple2(nonesLast.reverse, Ordering.String)).toSeq
+        })
 
       stringOptionOrdering = nullOrdering(1, -1)
-      assertMatchOrdered(
-        query.sortBy(c => (nonesFirst(reversed(c.flavor)), c.name)), inMem.sortBy(c => (c.flavor, c.name)))
+      assertMatchOrdered(inMem.sortBy(c => (c.flavor, c.name)),
+        shallow {
+          Queryable[Coffee].sortBy(c => (c.flavor, c.name))(Ordering.Tuple2(nonesFirst.reverse, Ordering.String)).toSeq
+        })
+
+      import scala.slick.direct.order.reversed
 
       stringOptionOrdering = initialStringOptionOrdering
-      assertMatchOrdered(
-        query.sortBy(c => (
-          c.name, reversed(c.sales), reversed(c.flavor))), inMem.sortBy(c => (
-          c.name, reversed(c.sales), reversed(c.flavor))))
-      *
-      */
+      assertMatchOrdered(inMem.sortBy(c => (
+        c.name, reversed(c.sales), reversed(c.flavor))),
+        shallow {
+          Queryable[Coffee].sortBy(c => (
+            c.name, c.sales, c.flavor))(Ordering.Tuple3(Ordering[String], Ordering[Int].reverse, nonesFirst.reverse)).toSeq
+        })
     }
   }
 }

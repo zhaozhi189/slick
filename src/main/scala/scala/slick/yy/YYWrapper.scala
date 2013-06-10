@@ -13,6 +13,7 @@ import FunctionSymbolExtensionMethods._
 import scala.slick.ast.LiteralNode
 import StaticType._
 import scala.slick.ast.TypedType
+import scala.slick.ast.{ Ordering => LOrdering }
 import scala.slick.lifted.Shape
 import scala.slick.lifted.IdentityShape
 import scala.slick.lifted.ColumnExtensionMethods
@@ -119,9 +120,10 @@ trait YYColumn[T] extends ColumnExtensionOps[T] with ColumnNumericExtensionOps[T
 
 // order stuff
 
-class YYOrdering[T](val ord: Ordering[T], val isReverse: Boolean = false) { self =>
+class YYOrdering[T](val ordering: LOrdering = LOrdering()) { self =>
   def reverse: YYOrdering[T] =
-    new YYOrdering(ord.reverse, !isReverse) {
+    //    new YYOrdering(ord.reverse, !isReverse) {
+    new YYOrdering[T](ordering.reverse) {
       override def toOrdered(x: Rep[T]) = new LOrdered(self.toOrdered(x).columns.map {
         case (n, ord) => (n, ord.reverse)
       })
@@ -129,7 +131,7 @@ class YYOrdering[T](val ord: Ordering[T], val isReverse: Boolean = false) { self
 
   protected final def yyOrderingListToOrdered[U <: Product](x: Rep[U])(yyOrdProduct: Product): LOrdered =
     new LOrdered(YYOrdering.repToOrdered(x).columns.zip(yyOrdProduct.productIterator.toList.map(_.asInstanceOf[YYOrdering[_]])).map {
-      case ((n, ord), yord) => (n, if (yord.isReverse) ord.reverse else ord)
+      case ((n, ord), yord) => (n, yord.ordering)
     })
 
   def toOrdered(x: Rep[T]): LOrdered = YYOrdering.repToOrdered(x)
@@ -140,8 +142,9 @@ object YYOrdering extends YYOrderingTuples {
     ord
 
   def by[T, S](f: YYRep[T] => YYRep[S])(ord: YYOrdering[S]): YYOrdering[T] = {
-    val newOrd = Ordering.by({ (x: T) => f(YYConstColumn(x)(null /*FIXME*/ )).asInstanceOf[YYConstColumn[S]].value })(ord.ord)
-    new YYOrdering[T](newOrd) {
+    //    val newOrd = Ordering.by({ (x: T) => f(YYConstColumn(x)(null /*FIXME*/ )).asInstanceOf[YYConstColumn[S]].value })(ord.ord)
+    //    new YYOrdering[T](newOrd) {
+    new YYOrdering[T]() {
       override def toOrdered(x: Rep[T]): LOrdered = {
         val newX = f(YYValue(x)).underlying
         YYOrdering.repToOrdered(newX)
@@ -150,7 +153,7 @@ object YYOrdering extends YYOrderingTuples {
   }
 
   def nonesFirst[T]: YYOrdering[Option[T]] = {
-    new YYOrdering[Option[T]](null) {
+    new YYOrdering[Option[T]](LOrdering().nullsFirst) {
       override def toOrdered(x: Rep[Option[T]]): LOrdered = {
         x match {
           case column: Column[_] => column.asc.nullsFirst
@@ -160,7 +163,7 @@ object YYOrdering extends YYOrderingTuples {
   }
 
   def nonesLast[T]: YYOrdering[Option[T]] = {
-    new YYOrdering[Option[T]](null) {
+    new YYOrdering[Option[T]](LOrdering().nullsLast) {
       override def toOrdered(x: Rep[Option[T]]): LOrdered = {
         x match {
           case column: Column[_] => column.asc.nullsLast
@@ -169,7 +172,7 @@ object YYOrdering extends YYOrderingTuples {
     }
   }
   def nullsFirst[T]: YYOrdering[T] = {
-    new YYOrdering[T](null) {
+    new YYOrdering[T](LOrdering().nullsFirst) {
       override def toOrdered(x: Rep[T]): LOrdered = {
         x match {
           case column: Column[_] => column.asc.nullsFirst
@@ -179,7 +182,7 @@ object YYOrdering extends YYOrderingTuples {
   }
 
   def nullsLast[T]: YYOrdering[T] = {
-    new YYOrdering[T](null) {
+    new YYOrdering[T](LOrdering().nullsLast) {
       override def toOrdered(x: Rep[T]): LOrdered = {
         x match {
           case column: Column[_] => column.asc.nullsLast
@@ -199,7 +202,7 @@ object YYOrdering extends YYOrderingTuples {
   }
 
   def fromOrdering[T](ord: Ordering[T]): YYOrdering[T] =
-    new YYOrdering(ord)
+    new YYOrdering[T]()
 
   val String = fromOrdering(Ordering.String)
   val Int = fromOrdering(Ordering.Int)

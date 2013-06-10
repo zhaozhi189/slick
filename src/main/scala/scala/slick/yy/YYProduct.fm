@@ -95,7 +95,8 @@ trait YYOrderingTuples {
 
   <#list 2..OrdN as i>
   def Tuple${i}[<#list 1..i as j>T${j}<#if i != j>,</#if></#list>](<#list 1..i as j>ord${j}: YYOrdering[T${j}]<#if i != j>,</#if></#list>): YYOrdering[(<#list 1..i as j>T${j}<#if i != j>,</#if></#list>)] =
-    new YYOrdering(Ordering.Tuple${i}(<#list 1..i as j>ord${j}.ord<#if i != j>,</#if></#list>)) {
+    // new YYOrdering(Ordering.Tuple${i}(<#list 1..i as j>ord${j}.ord<#if i != j>,</#if></#list>)) {
+    new YYOrdering[(<#list 1..i as j>T${j}<#if i != j>,</#if></#list>)]() {
       override def toOrdered(x: Rep[(<#list 1..i as j>T${j}<#if i != j>,</#if></#list>)]): LOrdered = yyOrderingListToOrdered(x)((<#list 1..i as j>ord${j}<#if i != j>,</#if></#list>))
     }
   </#list>
