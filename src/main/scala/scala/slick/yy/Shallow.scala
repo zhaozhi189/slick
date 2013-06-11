@@ -1,19 +1,14 @@
 package scala.slick.yy
 
 import scala.language.implicitConversions
-import scala.slick.driver.H2Driver
-import scala.slick.driver.JdbcDriver
-import scala.slick.jdbc.JdbcBackend
-import scala.slick.jdbc.UnitInvoker
+import scala.slick.driver.{ H2Driver, JdbcDriver }
+import scala.slick.jdbc.{ JdbcBackend, UnitInvoker }
 
 object Shallow {
-
   type Invoker[T] = (JdbcDriver => UnitInvoker[T])
-
   object Queryable {
     def apply[T]: Query[T] = ???
   }
-
   // TODO AnyVal is necessary or not
   implicit class SingleColumnQuery[T <: AnyVal](val query: Query[T]) extends AnyVal {
     def min: Option[T] = ???
@@ -21,12 +16,10 @@ object Shallow {
     def avg: Option[T] = ???
     def sum: Option[T] = ???
   }
-
   def nonesFirst[T]: Ordering[Option[T]] = ???
   def nonesLast[T]: Ordering[Option[T]] = ???
   def nullsFirst[T]: Ordering[T] = ???
   def nullsLast[T]: Ordering[T] = ???
-
   class Query[T] {
     def flatMap[S](projection: T => Query[S]): Query[S] = ???
     def map[S](projection: T => S): Query[S] = ???
@@ -49,14 +42,10 @@ object Shallow {
     def firstImplicit: (JdbcDriver => JdbcBackend#Session => T) = ???
     def toSeqImplicit: (JdbcDriver => JdbcBackend#Session => Seq[T]) = ???
   }
-
   class JoinQuery[T1, T2] extends Query[(T1, T2)] {
     def on(pred: (T1, T2) => Boolean): Query[(T1, T2)] = ???
   }
-
-  implicit def stringWrapper(value: String): ColumnOps[String] =
-    new ColumnOps(value)
-
+  implicit def stringWrapper(value: String): ColumnOps[String] = new ColumnOps(value)
   // FIXME operations for Int, Float, String, Double, and Boolean should be separated
   implicit class ColumnOps[T](val value: T) extends AnyVal {
     //    def abs: T = ??? // there's no need for it, intWrapper is handling it
@@ -70,30 +59,17 @@ object Shallow {
     def ltrim: String = ???
     def rtrim: String = ???
   }
-
   object Query {
     def ofTable[T](i: Table[T]): Query[T] = ???
     def apply[T](i: T): Query[T] = ???
   }
-
-  class Table[T] {
-
-  }
-
+  class Table[T]
   object Table {
     def getTable[S]: Table[S] = ???
   }
-
-  //  class Opt[T](val value: T) {
-  //    //    def ? : Opt[T] = ???
-  //    def getOrElse(default: => T): T = ???
-  //    def get: T = ???
-  //  }
-
   implicit class OptMaker[T](val value: T) {
     def ? : Option[T] = ???
   }
-
   object TestH2 {
     implicit val h2Driver = H2Driver
     implicit def h2Session = _session

@@ -10,14 +10,14 @@ trait Type
 object Type {
   def select(tpe: Type, sym: Symbol): Type = (tpe, sym) match {
     case (StructType(es), _) => es.find(x => x._1 == sym).map(_._2).
-      getOrElse(throw new SlickException("No type for symbol "+sym+" found in "+tpe))
-    case (ProductType(es), ElementSymbol(i)) if i <= es.length => es(i-1)
-    case _ => throw new SlickException("No type for symbol "+sym+" found in "+tpe)
+      getOrElse(throw new SlickException("No type for symbol " + sym + " found in " + tpe))
+    case (ProductType(es), ElementSymbol(i)) if i <= es.length => es(i - 1)
+    case _ => throw new SlickException("No type for symbol " + sym + " found in " + tpe)
   }
 }
 
 case class StructType(elements: Seq[(Symbol, Type)]) extends Type {
-  override def toString = "{" + elements.iterator.map{ case (s, t) => s + ": " + t }.mkString(", ") + "}"
+  override def toString = "{" + elements.iterator.map { case (s, t) => s + ": " + t }.mkString(", ") + "}"
 }
 
 trait OptionType extends Type {
@@ -86,7 +86,7 @@ object TypedType {
 
 /** A basic type which must be provided by all drivers */
 sealed class StaticType[T](name: String) extends BaseTypedType[T] {
-  override def toString = "StaticType."+name
+  override def toString = "StaticType." + name
 }
 
 object StaticType {
@@ -102,11 +102,11 @@ object StaticType {
 class TypeUtil(val tpe: Type) extends AnyVal {
   def asCollectionType: CollectionType = tpe match {
     case c: CollectionType => c
-    case _ => throw new SlickException("Expected a collection type, found "+tpe)
+    case _ => throw new SlickException("Expected a collection type, found " + tpe)
   }
   def asOptionType: OptionType = tpe match {
     case o: OptionType => o
-    case _ => throw new SlickException("Expected an option type, found "+tpe)
+    case _ => throw new SlickException("Expected an option type, found " + tpe)
   }
 }
 
@@ -115,7 +115,7 @@ object TypeUtil {
 }
 
 trait SymbolScope {
-  def + (entry: (Symbol, Type)): SymbolScope
+  def +(entry: (Symbol, Type)): SymbolScope
   def get(sym: Symbol): Option[Type]
   def withDefault(f: (Symbol => Type)): SymbolScope
 }
@@ -125,7 +125,7 @@ object SymbolScope {
 }
 
 class DefaultSymbolScope(val m: Map[Symbol, Type]) extends SymbolScope {
-  def + (entry: (Symbol, Type)) = new DefaultSymbolScope(m + entry)
+  def +(entry: (Symbol, Type)) = new DefaultSymbolScope(m + entry)
   def get(sym: Symbol): Option[Type] = m.get(sym)
   def withDefault(f: (Symbol => Type)) = new DefaultSymbolScope(m.withDefault(f))
 }

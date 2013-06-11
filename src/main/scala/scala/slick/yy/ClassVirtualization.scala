@@ -86,8 +86,6 @@ trait YYTransformers {
           Column(columnQName, tpe, cName, /*"case" + */ cName)
         }
       }
-      //      Table(tableQName, columns, Nil, tName + "Table", tName)
-      //      Table(tableQName, columns, Nil, tName + "Table", tName + "Row")
       Table(tableQName, columns, Nil, tName + "Table", tName + "Row")
     }
 
@@ -149,65 +147,19 @@ trait YYTransformers {
       DefDef(Modifiers(Flag.IMPLICIT), newTermName("convImplicit" + yyTableName), List(), List(List(ValDef(Modifiers(PARAM), newTermName("x"), AppliedTypeTree(Ident(repTypeName), List(Ident(newTypeName(table.caseClassName)))), EmptyTree))), Ident(tableTypeName), body)
     }
 
-    // FIXME workaround for join!
-    def createColumnToTableImplicitDef(table: Table): DefDef = {
-      val yyTableName = getYYTableName(table)
-      val repTypeName = newTypeName("Column")
-      val tableTypeName = newTypeName(yyTableName)
-      val body = Apply(Select(New(Ident(tableTypeName)), nme.CONSTRUCTOR), List(TypeApply(Select(Select(Ident(newTermName("x")), newTermName("underlying")), newTermName("asInstanceOf")), List(Ident(newTypeName(table.moduleName))))))
-      DefDef(Modifiers(Flag.IMPLICIT), newTermName("convColumnImplicit" + yyTableName), List(), List(List(ValDef(Modifiers(PARAM), newTermName("x"), AppliedTypeTree(Ident(repTypeName), List(Ident(newTypeName(table.caseClassName)))), EmptyTree))), Ident(tableTypeName), body)
-    }
-
-    //    def queryElemImplicitDef(table: Table)(symbol: Symbol): DefDef = {
-    //      val fromTypeTree = Ident(symbol)
-    //      val toTypeTree = Ident(newTypeName(table.caseClassName))
-    //      val queryElemTypeTree = AppliedTypeTree(Ident(newTypeName("QueryElem")), List(fromTypeTree, toTypeTree))
-    //      val body = Apply(Select(New(queryElemTypeTree), nme.CONSTRUCTOR), List())
-    //      DefDef(Modifiers(Flag.IMPLICIT), newTermName("queryElemImplicit" + table.caseClassName), List(), List(), queryElemTypeTree, body)
-    //    }
-
     def createTypeClassRow(table: Table)(symbol: Symbol): TypeDef = {
-      //      println(typeRef(symbol.typeSignature, symbol, Nil).typeSymbol.fullName)
-      //      println(typeRef(symbol.typeSignature, symbol, Nil))
-      //      macroHelper.tableToType(table)(typeRef(symbol.typeSignature, symbol, Nil))
-      //      println(symbol.typeSignature.widen)
-      //      println(symbol.fullName)
-      //      println(symbol.name.toTypeName)
       val typeName = table.caseClassName
-      //      val tree = Ident(TypeName(typeName + "__"))
-      //      tree.setSymbol(symbol)
-      //      println(Ident(symbol.name))
-      //      println(Ident(TypeName(typeName + "__")))
-      //      println(tree)
-      //      val typeType = TypeTree(typeRef(symbol.typeSignature, symbol, Nil))
-      //      val typeType = Ident(symbol)
       val typeType = TypeTree().setOriginal(Ident(symbol))
-      //      symbol.
-      //      val typeType = TypeTree().setOriginal(TypeTree(typeRef(symbol.typeSignature, symbol, Nil)))
-      //      val typeType = TypeTree().setSymbol(symbol)
-      //      build.newNestedSymbol(owner, name, pos, flags, isClass)
-      //      println(symbol.owner.newTypeSymbol(TypeName(typeName + "__")).fullName)
-      //            val typeType = Ident(TypeName(typeName)).setSymbol(symbol)
-      //      val typeType = Ident(symbol.newTypeSymbol(TypeName(typeName + "__")))
-      //      val typeType = TypeTree()
-
       TypeDef(NoMods, TypeName(typeName), List(), typeType)
     }
 
     def createValClassRow(table: Table)(symbol: Symbol): ValDef = {
-      //      macroHelper.tableToTypeVal(table)(typeRef(symbol.typeSignature, symbol, Nil))
       val termName = table.caseClassName
-      //    val typeTree = typeToTree(tpe)
-      //    val rhs = Apply(Select(New(typeTree), nme.CONSTRUCTOR), List())
-      //      val rhs = Ident(symbol)
       val rhs = Ident(symbol.companionSymbol)
-      //      println(s"val def companion symbol: ${symbol.companionSymbol}")
       ValDef(Modifiers(Flag.LOCAL), TermName(termName), TypeTree(), rhs)
     }
 
     def getTreesFromTable(table: Table)(symbol: Symbol): List[Tree] = {
-      //      implicit val univ = universe
-      //      val caseClassDef = createCaseClassRow(table)
       val typeClassRow = createTypeClassRow(table)(symbol)
       val valClassRow = createValClassRow(table)(symbol)
       val tableClassDef = createLiftedEmbeddingTableClass(table)
@@ -215,22 +167,7 @@ trait YYTransformers {
       val yyTableClassDef = createYYTableClass(table)
       val yyTableImplicitModule = createYYTableModule(table)
       val yyRepToTableImplicit = createRepToTableImplicitDef(table)
-      //      val yyColumnToTableImplicit = createColumnToTableImplicitDef(table) // FIXME workaround for join!
-      //      val queryElemImplicit = queryElemImplicitDef(table)(symbol) // for transferable query
-      //      List(caseClassDef, tableClassDef, tableModuleDef, yyTableClassDef, yyTableImplicitModule, yyRepToTableImplicit, yyColumnToTableImplicit)
-      //      List(caseClassDef, tableClassDef, tableModuleDef, yyTableClassDef, yyTableImplicitModule, yyRepToTableImplicit, yyColumnToTableImplicit, queryElemImplicit)
-      //      val res = List(typeClassRow, valClassRow, tableClassDef, tableModuleDef, yyTableClassDef, yyTableImplicitModule, yyRepToTableImplicit, yyColumnToTableImplicit)
-      //      List(typeClassRow, valClassRow, tableClassDef, tableModuleDef, yyTableClassDef, yyTableImplicitModule, yyRepToTableImplicit, yyColumnToTableImplicit)
       List(typeClassRow, valClassRow, tableClassDef, tableModuleDef, yyTableClassDef, yyTableImplicitModule, yyRepToTableImplicit)
-      //      List(typeClassRow, tableClassDef, tableModuleDef, yyTableClassDef, yyTableImplicitModule, yyRepToTableImplicit, yyColumnToTableImplicit)
-      //      List(tableClassDef, tableModuleDef, yyTableClassDef, yyTableImplicitModule, yyRepToTableImplicit, yyColumnToTableImplicit)
-      //      if (!YYCache.hasCache(symbol)) {
-      //        YYCache.updateTrees(symbol, res)
-      //        println(s"symbol $symbol wasn't cached!")
-      //        res
-      //      } else {
-      //        res
-      //      }
     }
 
     def convertCaseClass(tree: Tree) = {
@@ -282,19 +219,12 @@ trait YYTransformers {
     }
 
     override def traverse(tree: Tree) = tree match {
-      //      case TypeApply(Select(shallowTable, TermName("getTable")), List(tpt)) if shallowTable.symbol.typeSignature =:= typeOf[Shallow.Table.type] => {
-      //        collected += tpt.symbol
-      //      }
-      //      case TypeApply(Select(shallowQueryable, TermName("apply")), List(tpt)) if shallowQueryable.symbol.typeSignature =:= typeOf[Shallow.Queryable.type] => {
-      //        collected += tpt.symbol
-      //      }
       case typTree: TypTree if typTree.tpe != null => {
         def collectVirtuals(tpe: Type) {
           tpe match {
             case t @ TypeRef(pre, sym, Nil) => {
               if (isVirtual(tpe)) {
                 collected += t.typeSymbol
-                //                println(s"companion symbol: ${t.typeSymbol.companionSymbol} for typeSymbol: ${t.typeSymbol}")
               }
             }
             case TypeRef(pre, sym, args) => {

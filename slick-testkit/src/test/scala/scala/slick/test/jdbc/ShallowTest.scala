@@ -15,17 +15,6 @@ import ch.qos.logback.core.pattern.util.AsIsEscapeUtil
 object ShallowTest extends DBTestObject(TestDBs.H2Mem, TestDBs.H2Disk, TestDBs.HsqldbMem, TestDBs.HsqldbDisk, TestDBs.SQLiteMem, TestDBs.SQLiteDisk /*, TestDBs.DerbyMem, TestDBs.DerbyDisk*/ )
 
 @Entity("COFFEES") case class Coffee(@Entity("COF_NAME") name: String, sales: Int, flavor: Option[String])
-//class Foo[T]( val q : Queryable[T] )
-//
-//@table(name="COFFEES")
-//case class Coffee(
-//  @column(name="COF_NAME")
-//  name : String
-//  ,@column // <- assumes "SALES" automatically
-//  sales : Int
-//  ,@column
-//  flavor : Option[String]
-//)
 
 class ShallowTest(val tdb: TestDB) extends DBTest {
   implicit val testDriver = tdb.driver
@@ -58,71 +47,25 @@ class ShallowTest(val tdb: TestDB) extends DBTest {
   }
 
   object TestingTools {
-    //    def enableAssertQuery[T:TypeTag:ClassTag]( q:Queryable[T] ) = new{
-    //      def assertQuery( matcher : ast.Node => Unit ) = {
-    //        //backend.dump(q)
-    //        println( backend.toSql(q,threadLocalSession) )
-    //        println( backend.result(q,threadLocalSession) )
-    //        try{
-    //          matcher( backend.toQuery( q )._2.node : @unchecked ) : @unchecked
-    //          print(".")
-    //        } catch {
-    //          case e:MatchError => {
-    //            println("F")
-    //            println("")
-    //            backend.dump(q)
-    //            assert(false,"did not match")
-    //          }
-    //        }
-    //      }
-    //    }
-    //    object TableName{
-    //      def unapply( t:ast.TableNode ) = {
-    //        val name = t.tableName
-    //        Some(name)
-    //      }
-    //    }
-    //    object ColumnName{
-    //      def unapply( t:ast.Symbol ) = t match {
-    //        case ast.FieldSymbol( name ) =>
-    //          /*case RawNamedColumn( name, _, _ ) =>*/
-    //          Some(name)
-    //      }
-    //    }
-    //    def fail(msg:String = ""){
-    //      println("F")
-    //      throw new Exception(msg)
-    //    }
-    //    def fail : Unit = fail()
-    //    def success{ print(".") }
-    //    def assertEqualMultiSet[T]( lhs:scala.collection.Traversable[T], rhs:scala.collection.Traversable[T] ) = assertEquals( rhs.groupBy(x=>x), lhs.groupBy(x=>x) )
-    //    def assertMatch[T:TypeTag:ClassTag]( queryable:Queryable[T], expected: Traversable[T] ) = assertEqualMultiSet( backend.result(queryable,threadLocalSession), expected)
-    //    def assertNotEqualMultiSet[T]( lhs:scala.collection.Traversable[T], rhs:scala.collection.Traversable[T] ) = assertEquals( lhs.groupBy(x=>x), rhs.groupBy(x=>x) )
-    //    def assertNoMatch[T:TypeTag:ClassTag]( queryable:Queryable[T], expected: Traversable[T] ) = try{
-    //      assertEqualMultiSet( backend.result(queryable,threadLocalSession), expected)
-    //    } catch {
-    //      case e:AssertionError => 
-    //      case e:Throwable => throw e
-    //    }
-    //    def assertMatchOrdered[T:TypeTag:ClassTag]( queryable:Queryable[T], expected: Traversable[T] ) = assertEquals( expected, backend.result(queryable,threadLocalSession) )
     def assertMatchOrdered[T <: Product, T1 <: Product](expected: Vector[T], actual: Seq[T1]) =
       assertMatchCaseClass(expected, actual)
     def assertMatchCaseClass[T <: Product, T1 <: Product](expected: Vector[T], actual: Seq[T1]) = {
-      //      def convertToTuple2(src: Product): (String, Int) = (src.productElement(0).asInstanceOf[String], src.productElement(1).asInstanceOf[Int])
-      //      val expTuple2 = expected map convertToTuple2
-      //      val actTuple2 = actual map convertToTuple2
-      //      assertEquals(expTuple2, actTuple2.toVector)
       assertEquals(expected.toList, actual.toList)
     }
     def assertMatch[T](expected: Vector[T], actual: Seq[T]) = {
       assertEquals(expected, actual.toVector)
     }
+    def assertNoMatch[T](expected: Vector[T], actual: Seq[T]) = {
+      assertNotSame(expected, actual.toVector)
+    }
 
   }
 
   object SingletonInClass {
-    //    val qoo = Queryable[Coffee]
-    //    val q1 = qoo.map( _.sales + 5 )
+    import Shallow._
+    val q1 = shallow {
+      Queryable[Coffee].map(_.sales + 5).toSeq
+    }
   }
 
   def initialStringOptionOrdering = implicitly[Ordering[Option[String]]]
@@ -160,8 +103,8 @@ class ShallowTest(val tdb: TestDB) extends DBTest {
       }
 
       // test framework sanity checks
-      //      assertNoMatch(query, inMem ++ inMem)
-      //      assertNoMatch(query, List())
+      assertNoMatch(inMem ++ inMem, query)
+      assertNoMatch(Vector(), query)
 
       // fetch whole table
       assertMatchCaseClass(inMem, query)
@@ -194,17 +137,10 @@ class ShallowTest(val tdb: TestDB) extends DBTest {
         inMem.map(_.sales + 5),
         Singleton.Singleton.Singleton.q1)
 
-      /*
-      // test singleton in class (not supported (yet?))
-      try {
-        assertMatch(
-          SingletonInClass.q1,
-          inMem.map(_.sales + 5))
-        fail()
-      } catch {
-        case _: SlickException =>
-      }
-      */
+      // test singleton in class (supported (!))
+      assertMatch(inMem.map(_.sales + 5),
+        SingletonInClass.q1
+      )
 
       // simple map
       assertMatch(
@@ -349,8 +285,8 @@ class ShallowTest(val tdb: TestDB) extends DBTest {
       // nested structures (here tuples and case classes)
       //      assertMatch(
       //        inMem.map(c => (c.name, c.sales, c)),
-      //        shallow {
-      //          Queryable[Coffee].map(c => (c.name, c.sales, c)).toSeq
+      //        shallowDebug {
+      //          Queryable[Coffee].map(c => (c.name, c.sales, Coffee(c.name, c.sales, c.flavor))).toSeq
       //        })
       // length
       assertEquals(inMem.length, shallow {
