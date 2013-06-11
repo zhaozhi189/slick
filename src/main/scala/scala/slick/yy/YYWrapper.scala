@@ -137,6 +137,7 @@ trait ColumnExtensionOps[T] { self: YYColumn[T] =>
   def isNotNull: YYColumn[Boolean] = YYColumn(extendedColumn.isNotNull)
   def is[T2](e: YYColumn[T2]): YYColumn[Boolean] = YYColumn(extendedColumn is e.column)
   def ===[T2](e: YYColumn[T2]): YYColumn[Boolean] = YYColumn(extendedColumn === e.column)
+  def __==[T2](e: YYColumn[T2]): YYColumn[Boolean] = YYColumn(extendedColumn === e.column)
   def >[T2](e: YYColumn[T2]): YYColumn[Boolean] = YYColumn(extendedColumn > e.column)
   def <[T2](e: YYColumn[T2]): YYColumn[Boolean] = YYColumn(extendedColumn < e.column)
 }
