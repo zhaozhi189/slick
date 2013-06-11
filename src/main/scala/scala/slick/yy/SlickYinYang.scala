@@ -28,7 +28,6 @@ trait TransferCake { self: SlickYinYang =>
 
 trait SlickConstYinYang extends scala.slick.driver.JdbcDriver.ImplicitJdbcTypes { self: SlickYinYang =>
   import scala.slick.ast.TypedType
-
   implicit object LiftUnit extends LiftEvidence[Unit, Unit] {
     def lift(v: Unit): Unit = v
     def hole(tpe: Manifest[Any], symbolId: scala.Int): Unit = ()
@@ -39,6 +38,6 @@ trait SlickConstYinYang extends scala.slick.driver.JdbcDriver.ImplicitJdbcTypes 
   }
   implicit def liftQuery[T](implicit manifest: Manifest[OShallow.Query[T]]): LiftEvidence[OShallow.Query[T], Query[T]] = new LiftEvidence[OShallow.Query[T], Query[T]] {
     def lift(v: OShallow.Query[T]): Query[T] = v.asInstanceOf[TransferQuery[T]].underlying
-    def hole(tpe: Manifest[Any], symbolId: scala.Int): Query[T] = null
+    def hole(tpe: Manifest[Any], symbolId: scala.Int): Query[T] = ???
   }
 }

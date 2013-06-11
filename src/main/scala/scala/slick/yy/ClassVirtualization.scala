@@ -14,11 +14,9 @@ import scala.reflect.macros.Context
 trait YYTransformers {
   val universe: Universe
   val mirror: universe.Mirror
-
   import universe._
   import Flag.CASE
   import Flag.PARAM
-
   val macroHelper = new {
     val universe: YYTransformers.this.universe.type = YYTransformers.this.universe
   } with MacroHelpers(DefaultContextUtils, "")
@@ -47,33 +45,26 @@ trait YYTransformers {
   }
 
   class ClassVirtualization extends Transformer {
-
+    val SYNTHETIC = scala.reflect.internal.Flags.SYNTHETIC.asInstanceOf[Long].asInstanceOf[FlagSet]
     def isCaseClassDef(tree: Tree): Boolean = tree match {
       case ClassDef(mods, _, _, _) if mods.hasFlag(CASE) => true
       case _ => false
     }
-
-    val SYNTHETIC = scala.reflect.internal.Flags.SYNTHETIC.asInstanceOf[Long].asInstanceOf[FlagSet]
-
     def isCaseClassObject(tree: Tree): Boolean = tree match {
       case ModuleDef(mods, _, _) if mods.hasFlag(SYNTHETIC) => true
       case _ => false
     }
-
     def getTableFromSymbol(symbol: Symbol) = {
       def getNameOfSymbol(symbol: Symbol): Option[String] = {
         // workaround for SI-7424
         symbol.typeSignature
         symbol.annotations.foreach(_.tpe)
-
         symbol.annotations.headOption.map(_.scalaArgs.head).flatMap(annotationToName)
       }
-
-      def annotationToName(tree: Tree): Option[String] =
-        tree match {
-          case Literal(Constant(name: String)) => Some(name)
-          case _ => None
-        }
+      def annotationToName(tree: Tree): Option[String] = tree match {
+        case Literal(Constant(name: String)) => Some(name)
+        case _ => None
+      }
       val tName = symbol.name.toString()
       val tableName = getNameOfSymbol(symbol).getOrElse(tName.toUpperCase())
       val tableQName = QualifiedName.tableName(tableName)
@@ -83,16 +74,13 @@ trait YYTransformers {
           val columnName = getNameOfSymbol(param).getOrElse(cName.toUpperCase())
           val columnQName = QualifiedName.columnName(tableQName, columnName)
           val tpe = param.typeSignature
-          Column(columnQName, tpe, cName, /*"case" + */ cName)
+          Column(columnQName, tpe, cName, cName)
         }
       }
       Table(tableQName, columns, Nil, tName + "Table", tName + "Row")
     }
-
     def getTableFromCaseClassDef(classDef: ClassDef) = getTableFromSymbol(classDef.symbol)
-
     def getYYTableName(table: Table): String = "YY" + table.moduleName
-
     def createYYTableClass(table: Table): ClassDef = {
       val yyTableName = getYYTableName(table)
       val PARAMACCESSOR = scala.reflect.internal.Flags.PARAMACCESSOR.asInstanceOf[Long].asInstanceOf[FlagSet]
@@ -117,7 +105,6 @@ trait YYTransformers {
       val constructor = DefDef(NoMods, nme.CONSTRUCTOR, List(), List(List()), TypeTree(), Block(List(superCall), Literal(Constant(()))))
       ModuleDef(Modifiers(Flag.IMPLICIT), newTermName("implicit" + yyTableName), Template(List(Ident(TypeName(yyTableName))), emptyValDef, List(constructor)))
     }
-
     def createLiftedEmbeddingTableClass(table: Table): ClassDef = macroHelper.tableToModule(table) match {
       case ModuleDef(mods, TermName(name), Template(List(_), self, body)) => {
         val tableType = macroHelper.createClassFromString("_root_.scala.slick.driver.JdbcDriver.simple.Table")
@@ -131,14 +118,12 @@ trait YYTransformers {
       val constructor = DefDef(NoMods, nme.CONSTRUCTOR, List(), List(List()), TypeTree(), Block(List(superCall), Literal(Constant(()))))
       ModuleDef(NoMods, TermName(table.moduleName), Template(List(Ident(TypeName(table.moduleName))), emptyValDef, List(constructor)))
     }
-
     def createCaseClassRow(table: Table): ClassDef = macroHelper.tableToCaseClass(table) match {
       case ClassDef(mods, name, tparams, Template(parents, self, body)) => {
         val trTree = macroHelper.createClassFromString("_root_.scala.slick.yy.YYTableRow")
         ClassDef(mods, name, tparams, Template(trTree :: parents, self, body))
       }
     }
-
     def createRepToTableImplicitDef(table: Table): DefDef = {
       val yyTableName = getYYTableName(table)
       val repTypeName = newTypeName("CakeRep")
@@ -146,55 +131,34 @@ trait YYTransformers {
       val body = Apply(Select(New(Ident(tableTypeName)), nme.CONSTRUCTOR), List(TypeApply(Select(Select(Ident(newTermName("x")), newTermName("underlying")), newTermName("asInstanceOf")), List(Ident(newTypeName(table.moduleName))))))
       DefDef(Modifiers(Flag.IMPLICIT), newTermName("convImplicit" + yyTableName), List(), List(List(ValDef(Modifiers(PARAM), newTermName("x"), AppliedTypeTree(Ident(repTypeName), List(Ident(newTypeName(table.caseClassName)))), EmptyTree))), Ident(tableTypeName), body)
     }
-
     def createTypeClassRow(table: Table)(symbol: Symbol): TypeDef = {
       val typeName = table.caseClassName
       val typeType = TypeTree().setOriginal(Ident(symbol))
       TypeDef(NoMods, TypeName(typeName), List(), typeType)
     }
-
     def createValClassRow(table: Table)(symbol: Symbol): ValDef = {
       val termName = table.caseClassName
       val rhs = Ident(symbol.companionSymbol)
       ValDef(Modifiers(Flag.LOCAL), TermName(termName), TypeTree(), rhs)
     }
+    def getTreesFromTable(table: Table)(symbol: Symbol): List[Tree] =
+      List(createTypeClassRow(table)(symbol), createValClassRow(table)(symbol), createLiftedEmbeddingTableClass(table), createLiftedEmbeddingTableModule(table),
+        createYYTableClass(table), createYYTableModule(table), createRepToTableImplicitDef(table))
 
-    def getTreesFromTable(table: Table)(symbol: Symbol): List[Tree] = {
-      val typeClassRow = createTypeClassRow(table)(symbol)
-      val valClassRow = createValClassRow(table)(symbol)
-      val tableClassDef = createLiftedEmbeddingTableClass(table)
-      val tableModuleDef = createLiftedEmbeddingTableModule(table)
-      val yyTableClassDef = createYYTableClass(table)
-      val yyTableImplicitModule = createYYTableModule(table)
-      val yyRepToTableImplicit = createRepToTableImplicitDef(table)
-      List(typeClassRow, valClassRow, tableClassDef, tableModuleDef, yyTableClassDef, yyTableImplicitModule, yyRepToTableImplicit)
+    def convertCaseClass(tree: Tree): List[Tree] = tree match {
+      case classDef @ ClassDef(mods, _, _, _) if isCaseClassDef(tree) => getTreesFromTable(getTableFromCaseClassDef(classDef))(classDef.symbol)
+      case _ => Nil
     }
-
-    def convertCaseClass(tree: Tree) = {
-
-      tree match {
-        case classDef @ ClassDef(mods, _, _, _) if isCaseClassDef(tree) => {
-          val table = getTableFromCaseClassDef(classDef)
-          getTreesFromTable(table)(classDef.symbol)
-        }
-        case _ => Nil
-      }
-    }
-
     override def transform(tree: Tree): Tree = tree match {
-      case Block(stats, expr) if (stats.exists(isCaseClassDef(_))) => {
+      case Block(stats, expr) if (stats.exists(isCaseClassDef(_))) =>
         Block(stats.flatMap(x => if (isCaseClassDef(x)) convertCaseClass(x) else if (isCaseClassObject(x)) Nil else List(transform(x))), transform(expr))
-      }
       case _ => super.transform(tree)
     }
     def transformBySymbols(tree: Tree, symbols: List[Symbol]): Tree = tree match {
-      case Block(stats, expr) => {
-        Block(symbols.flatMap(x => getTreesFromTable(getTableFromSymbol(x))(x)) ++ stats, expr)
-      }
+      case Block(stats, expr) => Block(symbols.flatMap(x => getTreesFromTable(getTableFromSymbol(x))(x)) ++ stats, expr)
       case expr => Block(symbols.flatMap(x => getTreesFromTable(getTableFromSymbol(x))(x)), expr)
     }
   }
-
   object VirtualClassCollector {
     def apply(tree: Tree): List[Symbol] = {
       val vcc = new VirtualClassCollector()
@@ -204,42 +168,28 @@ trait YYTransformers {
       virtualSymbols
     }
   }
-
   private final class VirtualClassCollector extends Traverser {
-
     private[YYTransformers] val collected = new HashSet[Symbol]()
     private val virtualTypes: List[Type] = {
       import universe.TypeTag._
       List(Boolean.tpe, Int.tpe, Long.tpe, Float.tpe, Double.tpe, typeOf[String].normalize)
     }
-
     private def isVirtual(tpe: Type): Boolean = {
       // normalize is used because of String
       virtualTypes.find(x => (tpe.normalize equals x)).isEmpty
     }
-
     override def traverse(tree: Tree) = tree match {
       case typTree: TypTree if typTree.tpe != null => {
-        def collectVirtuals(tpe: Type) {
-          tpe match {
-            case t @ TypeRef(pre, sym, Nil) => {
-              if (isVirtual(tpe)) {
-                collected += t.typeSymbol
-              }
-            }
-            case TypeRef(pre, sym, args) => {
-              args foreach collectVirtuals
-            }
-            case _ =>
-          }
+        def collectVirtuals(tpe: Type): Unit = tpe match {
+          case t @ TypeRef(pre, sym, Nil) if isVirtual(t) => collected += t.typeSymbol
+          case TypeRef(pre, sym, args) => args foreach collectVirtuals
+          case _ => ()
         }
         collectVirtuals(typTree.tpe)
       }
       case _ => super.traverse(tree)
     }
-
   }
 }
 
-import scala.annotation.StaticAnnotation
-final case class Entity(name: String) extends StaticAnnotation
+final case class Entity(name: String) extends scala.annotation.StaticAnnotation
