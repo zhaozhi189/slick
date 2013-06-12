@@ -6,14 +6,12 @@ import scala.slick.schema.QualifiedName
 import scala.slick.typeproviders.MacroHelpers
 import scala.slick.typeproviders.DefaultContextUtils
 import scala.reflect.macros.Universe
-import scala.reflect.api.Mirror
 import scala.collection.mutable.HashSet
 import scala.collection.mutable.HashMap
 import scala.reflect.macros.Context
 
 trait YYTransformers {
   val universe: Universe
-  val mirror: universe.Mirror
   import universe._
   import Flag.CASE
   import Flag.PARAM
@@ -24,14 +22,11 @@ trait YYTransformers {
   var virtualTraverserIsApplied: Boolean = false
   var virtualSymbols: List[Symbol] = Nil
 
-  object ClassVirtualization extends (Tree => Tree) {
-    def apply(tree: Tree): Tree = {
+  object ClassVirtualization {
+    import ch.epfl.yinyang.transformers.PostProcessing._
+    def getStatementsFromTables: List[(StatementContext, Tree)] = {
       val cv = new ClassVirtualization()
-      if (!virtualTraverserIsApplied)
-        cv.transform(tree)
-      else {
-        cv.transformBySymbols(tree, virtualSymbols)
-      }
+      cv.getStatementsFromTables(virtualSymbols)
     }
   }
   // workaround for compatibility of 2.10 and macro paradise
@@ -44,7 +39,7 @@ trait YYTransformers {
     def unapply(t: TypeName): Option[String] = Some(t.toString)
   }
 
-  class ClassVirtualization extends Transformer {
+  class ClassVirtualization {
     val SYNTHETIC = scala.reflect.internal.Flags.SYNTHETIC.asInstanceOf[Long].asInstanceOf[FlagSet]
     def isCaseClassDef(tree: Tree): Boolean = tree match {
       case ClassDef(mods, _, _, _) if mods.hasFlag(CASE) => true
@@ -145,18 +140,9 @@ trait YYTransformers {
       List(createTypeClassRow(table)(symbol), createValClassRow(table)(symbol), createLiftedEmbeddingTableClass(table), createLiftedEmbeddingTableModule(table),
         createYYTableClass(table), createYYTableModule(table), createRepToTableImplicitDef(table))
 
-    def convertCaseClass(tree: Tree): List[Tree] = tree match {
-      case classDef @ ClassDef(mods, _, _, _) if isCaseClassDef(tree) => getTreesFromTable(getTableFromCaseClassDef(classDef))(classDef.symbol)
-      case _ => Nil
-    }
-    override def transform(tree: Tree): Tree = tree match {
-      case Block(stats, expr) if (stats.exists(isCaseClassDef(_))) =>
-        Block(stats.flatMap(x => if (isCaseClassDef(x)) convertCaseClass(x) else if (isCaseClassObject(x)) Nil else List(transform(x))), transform(expr))
-      case _ => super.transform(tree)
-    }
-    def transformBySymbols(tree: Tree, symbols: List[Symbol]): Tree = tree match {
-      case Block(stats, expr) => Block(symbols.flatMap(x => getTreesFromTable(getTableFromSymbol(x))(x)) ++ stats, expr)
-      case expr => Block(symbols.flatMap(x => getTreesFromTable(getTableFromSymbol(x))(x)), expr)
+    import ch.epfl.yinyang.transformers.PostProcessing._
+    def getStatementsFromTables(symbols: List[Symbol]): List[(StatementContext, Tree)] = {
+      symbols.flatMap(x => getTreesFromTable(getTableFromSymbol(x))(x).map(tree => (ClassContext, tree)))
     }
   }
   object VirtualClassCollector {
