@@ -381,7 +381,7 @@ class YYTest {
       val q1 = for ((x, y) <- Queryable[Coffn].map(x => (x.idNumber, x._2)) if x == 3) yield (x, y)
       q1.toSeq
     }
-    assertEquals("Query forComprehension filter == map (_1, _2) of Table + Annotation + (_1, _2) <-", List((3, "three")), r7.toList)
+    assertEquals("Query forComprehension filter == map (_1, _2) of Table + Annotation + (_1, _2) <-", List((3, "three")), r8.toList)
     val r9 = shallow {
       val q1 = for (x <- Queryable[Coff]) yield (x.idNumber, (x.idNumber, x.name))
       q1.toSeq
@@ -617,7 +617,6 @@ class YYTest {
     }
     val r0t: List[Int] = r0.toList
     assertEquals(List(2, 3, 3), r0t)
-
     val r = shallow {
       (for {
         (k, v) <- Queryable[T3].groupBy(t => t.a)

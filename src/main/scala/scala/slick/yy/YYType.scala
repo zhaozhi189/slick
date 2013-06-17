@@ -14,6 +14,10 @@ trait YYType {
   type ColumnOps[T] = YYColumn[T]
   type Invoker[T] = Shallow.Invoker[T]
   type Ordering[T] = YYOrdering[T]
+  type Option[T] = YYColumn[scala.Option[T]]
+  class OptMaker[T](val value: YYColumn[T]) {
+    def ? : YYOption[T] = YYOption.fromPlainColumn(value.underlying)
+  }
 }
 
 trait YYConstantSourceType[T]

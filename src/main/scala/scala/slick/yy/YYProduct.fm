@@ -105,7 +105,7 @@ trait YYSlickCakeTuples { self: YYSlickCake =>
         YYProjection.fromYY(<#list 1..i as j>_${j}.asInstanceOf[Column[T${j}]]<#if i != j>,</#if></#list>)
       else
         YYTuple.fromYY(<#list 1..i as j>_${j}<#if i != j>,</#if></#list>)
-    def unapply[<#list 1..i as j>T${j}<#if i != j>,</#if></#list>](tup: Tuple${i}[<#list 1..i as j>T${j}<#if i != j>,</#if></#list>]): Option[(<#list 1..i as j>YYRep[T${j}]<#if i != j>,</#if></#list>)] = Some((<#list 1..i as j>tup._${j}<#if i != j>,</#if></#list>))
+    def unapply[<#list 1..i as j>T${j}<#if i != j>,</#if></#list>](tup: Tuple${i}[<#list 1..i as j>T${j}<#if i != j>,</#if></#list>]): scala.Option[(<#list 1..i as j>YYRep[T${j}]<#if i != j>,</#if></#list>)] = Some((<#list 1..i as j>tup._${j}<#if i != j>,</#if></#list>))
   }
   </#list>
 

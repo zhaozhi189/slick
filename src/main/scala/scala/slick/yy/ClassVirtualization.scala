@@ -113,12 +113,6 @@ trait YYTransformers {
       val constructor = DefDef(NoMods, nme.CONSTRUCTOR, List(), List(List()), TypeTree(), Block(List(superCall), Literal(Constant(()))))
       ModuleDef(NoMods, TermName(table.moduleName), Template(List(Ident(TypeName(table.moduleName))), emptyValDef, List(constructor)))
     }
-    def createCaseClassRow(table: Table): ClassDef = macroHelper.tableToCaseClass(table) match {
-      case ClassDef(mods, name, tparams, Template(parents, self, body)) => {
-        val trTree = macroHelper.createClassFromString("_root_.scala.slick.yy.YYTableRow")
-        ClassDef(mods, name, tparams, Template(trTree :: parents, self, body))
-      }
-    }
     def createRepToTableImplicitDef(table: Table): DefDef = {
       val yyTableName = getYYTableName(table)
       val repTypeName = newTypeName("CakeRep")

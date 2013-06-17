@@ -32,6 +32,7 @@ object Shallow {
     def innerJoin[S](q2: Query[S]): JoinQuery[T, S] = ???
     def leftJoin[S](q2: Query[S]): JoinQuery[T, S] = ???
     def rightJoin[S](q2: Query[S]): JoinQuery[T, S] = ???
+    def outerJoin[S](q2: Query[S]): JoinQuery[T, S] = ???
     def zip[S](q2: Query[S]): JoinQuery[T, S] = ???
     def zipWithIndex: JoinQuery[T, Long] = ???
     def take(i: Int): Query[T] = ???
@@ -46,9 +47,10 @@ object Shallow {
     def on(pred: (T1, T2) => Boolean): Query[(T1, T2)] = ???
   }
   implicit def stringWrapper(value: String): ColumnOps[String] = new ColumnOps(value)
+  implicit def intWrapper(value: Int): ColumnOps[Int] = new ColumnOps(value)
   // FIXME operations for Int, Float, String, Double, and Boolean should be separated
   implicit class ColumnOps[T](val value: T) extends AnyVal {
-    //    def abs: T = ??? // there's no need for it, intWrapper is handling it
+    def abs: T = ???
     def ceil: T = ???
     def floor: T = ???
     def sign: T = ???

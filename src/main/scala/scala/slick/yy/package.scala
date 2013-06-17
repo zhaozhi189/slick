@@ -27,7 +27,7 @@ package object yy {
       YYTransformer[c.type, T](c)("scala.slick.yy.SlickYinYang",
         new SlickTypeTransformer[c.type](c)(virtualTypes),
         postProcessing = Some(new PostProcessing[c.type](c)(virtualStatements)),
-        Map("shallow" -> false, "debug" -> 0, "featureAnalysing" -> false, "ascriptionTransforming" -> false)
+        Map("shallow" -> false, "debug" -> 0, "featureAnalysing" -> false, "ascriptionTransforming" -> true)
       )(block)
     }
     def slickDebug[T](c: Context)(block: c.Expr[T]): c.Expr[T] = {
@@ -40,9 +40,9 @@ package object yy {
       val virtualStatements = yyTranformers.ClassVirtualization.getStatementsFromTables
 
       YYTransformer[c.type, T](c)("scala.slick.yy.SlickYinYang",
-        new SlickTypeTransformer[c.type](c)(virtualTypes),
+        new SlickTypeTransformer[c.type](c, 1)(virtualTypes),
         postProcessing = Some(new PostProcessing[c.type](c)(virtualStatements)),
-        Map("shallow" -> false, "debug" -> 1, "featureAnalysing" -> false, "ascriptionTransforming" -> false)
+        Map("shallow" -> false, "debug" -> 1, "featureAnalysing" -> false, "ascriptionTransforming" -> true)
       )(block)
     }
 
