@@ -2,6 +2,7 @@
 <#assign OrdN = 9>
 package scala.slick.yy
 
+import scala.language.implicitConversions
 import scala.slick.lifted.Column
 import scala.slick.lifted.Rep
 import scala.slick.lifted.Projection
@@ -96,6 +97,10 @@ trait YYOrderingTuples {
 trait YYSlickCakeTuples { self: YYSlickCake =>
   <#list 2..N as i>
   type Tuple${i}[<#list 1..i as j>T${j}<#if i != j>,</#if></#list>] = YYTuple${i}[<#list 1..i as j>T${j}<#if i != j>,</#if></#list>]
+  </#list>
+
+  <#list 2..N as i>
+  implicit def yyRepTuple${i}ToYYTuple[<#list 1..i as j>T${j}<#if i != j>,</#if></#list>](x: CakeRep[scala.Tuple${i}[<#list 1..i as j>T${j}<#if i != j>,</#if></#list>]]): Tuple${i}[<#list 1..i as j>T${j}<#if i != j>,</#if></#list>] = x.asInstanceOf[Tuple${i}[<#list 1..i as j>T${j}<#if i != j>,</#if></#list>]]
   </#list>
 
   <#list 2..N as i>

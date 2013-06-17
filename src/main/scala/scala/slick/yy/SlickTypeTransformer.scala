@@ -9,7 +9,7 @@ import ch.epfl.yinyang.{ TransformationUtils }
 class SlickTypeTransformer[C <: Context](ctx: C, override val debugLevel: Int = 0)(virtualTypes: List[Universe#Type]) extends PolyTransformer[C](ctx) with TransformationUtils {
   type Ctx = C
   import c.universe._
-  
+
   lazy val virtualTypeNames = virtualTypes.map(_.typeSymbol.name.toString())
 
   def isVirtualType(tpe: Type): Boolean = {
@@ -47,8 +47,7 @@ class SlickTypeTransformer[C <: Context](ctx: C, override val debugLevel: Int = 
             super.constructPolyTree(typeCtx, inType)
         case TypeRef(pre, sym, args) if isFunctionType(inType) => {
           val argTrees = args map { x =>
-            AppliedTypeTree(Select(This(newTypeName(className)), newTypeName("CakeRep")),
-              List(constructPolyTree(TypeApplyCtx, x)))
+            constructPolyTree(typeCtx, x)
           }
           AppliedTypeTree(Select(Ident(newTermName("scala")), toType(sym)),
             argTrees)

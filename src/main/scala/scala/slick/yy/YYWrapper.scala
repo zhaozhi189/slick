@@ -184,14 +184,12 @@ object YYShape {
   def apply[U] = ident[U]
 }
 
-//trait YYQuery[U] extends QueryOps[U] with YYRep[Seq[U]] {
-trait YYQuery[U] extends QueryOps[U] with YYRep[Shallow.Query[U]] {
+trait YYQuery[U] extends QueryOps[U] with YYRep[Seq[U]] {
   val query: Query[Rep[U], U]
   def repValue: Rep[U] = YYValue.valueOfQuery(query)
   type E <: YYRep[U]
   def value: E = YYValue[U, E](repValue)
-  //  override def underlying = query
-  override def underlying = query.asInstanceOf[Rep[Shallow.Query[U]]]
+  override def underlying = query
   object BooleanRepCanBeQueryCondition extends CanBeQueryCondition[Rep[Boolean]] {
     def apply(value: Rep[Boolean]) = value.asInstanceOf[Column[Boolean]]
   }
@@ -207,10 +205,9 @@ trait YYQuery[U] extends QueryOps[U] with YYRep[Shallow.Query[U]] {
 }
 
 trait YYJoinQuery[U1, U2] extends YYQuery[(U1, U2)] {
-  //  def on(pred: (YYRep[U1], YYRep[U2]) => YYColumn[Boolean]): YYQuery[(U1, U2)] = {
-  def on(pred: (YYRep[U1], YYRep[U2]) => YYRep[Boolean]): YYQuery[(U1, U2)] = {
+  def on(pred: (YYRep[U1], YYRep[U2]) => YYColumn[Boolean]): YYQuery[(U1, U2)] = {
     def underlyingPredicate(_1: Rep[U1], _2: Rep[U2]): Column[Boolean] =
-      pred(YYValue.applyUntyped(_1), YYValue.applyUntyped(_2)).underlying.asInstanceOf[Column[Boolean]]
+      pred(YYValue.applyUntyped(_1), YYValue.applyUntyped(_2)).underlying
     YYQuery.fromJoinQuery(query.asInstanceOf[BaseJoinQuery[Rep[U1], Rep[U2], U1, U2]].on[Column[Boolean]](underlyingPredicate _))
   }
 }
@@ -243,8 +240,8 @@ trait QueryOps[T] { self: YYQuery[T] =>
   def map[S](projection: YYRep[T] => YYRep[S]): YYQuery[S] = YYQuery.fromQuery(query.map(underlyingProjection(projection))(YYShape.ident[S]))
   def filter(projection: YYRep[T] => YYRep[Boolean]): YYQuery[T] = YYQuery.fromQuery(query.filter(underlyingProjection(projection))(BooleanRepCanBeQueryCondition))
   def withFilter(projection: YYRep[T] => YYRep[Boolean]): YYQuery[T] = filter(projection)
-  def flatMap[S](projection: YYRep[T] => YYRep[Shallow.Query[S]]): YYQuery[S] = YYQuery.fromQuery(query flatMap { (x: Rep[T]) =>
-    projection(YYValue[T, E](x)).asInstanceOf[YYQuery[S]].query
+  def flatMap[S](projection: YYRep[T] => YYQuery[S]): YYQuery[S] = YYQuery.fromQuery(query flatMap { (x: Rep[T]) =>
+    projection(YYValue[T, E](x)).query
   })
   def sortBy[S](f: YYRep[T] => YYRep[S])(ord: YYOrdering[S]): YYQuery[T] = YYQuery.fromQuery(query.sortBy(underlyingProjection(f))((x: Rep[S]) => ord.toOrdered(x)))
   def sorted(ord: YYOrdering[T]): YYQuery[T] = YYQuery.fromQuery(query.sorted((x: Rep[T]) => ord.toOrdered(x)))
