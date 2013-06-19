@@ -1,9 +1,8 @@
 package scala.slick.typeproviders.codegenerator
 
-import scala.slick.typeproviders.CodeGenerator
 import scala.reflect.runtime.universe._
 
-trait ExpressionComponent { self: CodeGenerator =>
+trait ExpressionComponent { self: Generator =>
   def generateCodeForTree(tree: Tree): String =
     generateCodeForTree(tree, None)
 

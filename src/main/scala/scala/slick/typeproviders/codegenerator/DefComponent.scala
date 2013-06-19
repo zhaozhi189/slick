@@ -1,9 +1,8 @@
 package scala.slick.typeproviders.codegenerator
 
-import scala.slick.typeproviders.CodeGenerator
 import scala.reflect.runtime.universe._
 
-trait DefComponent { self: CodeGenerator =>
+trait DefComponent { self: Generator =>
   def generateCodeForValDef(valDef: ValDef): String = {
     val ValDef(_, TermName(fieldName), tpe, rhs) = valDef
     val typeCode = generateCodeForTypeTree(tpe)

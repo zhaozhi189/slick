@@ -1,13 +1,12 @@
 package scala.slick.typeproviders.codegenerator
 
-import scala.slick.typeproviders.CodeGenerator
 import scala.reflect.runtime.universe._
 import Flag._
 import scala.slick.SlickException
 
-trait TemplateComponent { self: CodeGenerator =>
+trait TemplateComponent { self: Generator =>
   def generateCodeForClass(classDef: ClassDef): String = {
-    val isCaseClass = classDef.mods.equals(Modifiers(CASE))
+    val isCaseClass = classDef.mods.hasFlag(CASE)
     if (!isCaseClass) {
       throw new SlickException("CodeGeneration not supported for non-case classes")
     }
