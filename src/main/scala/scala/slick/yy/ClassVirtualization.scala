@@ -5,7 +5,8 @@ import scala.slick.schema.Column
 import scala.slick.schema.QualifiedName
 import scala.slick.typeproviders.MacroHelpers
 import scala.slick.typeproviders.DefaultContextUtils
-import scala.reflect.macros.Universe
+import scala.reflect.macros.{ Universe => MacroUniverse }
+import scala.reflect.api.Universe
 import scala.collection.mutable.HashSet
 import scala.collection.mutable.HashMap
 import scala.reflect.macros.Context
@@ -115,14 +116,19 @@ trait YYTransformers {
     }
     def createRepToTableImplicitDef(table: Table): DefDef = {
       val yyTableName = getYYTableName(table)
-      val repTypeName = newTypeName("CakeRep")
+      //      val repTypeName = newTypeName("CakeRep")
+      //      val repTypeTree = Ident(repTypeName)
+      val repTypeTree = macroHelper.createClassFromString("_root_.scala.slick.yy.YYRep")
       val tableTypeName = newTypeName(yyTableName)
       val body = Apply(Select(New(Ident(tableTypeName)), nme.CONSTRUCTOR), List(TypeApply(Select(Select(Ident(newTermName("x")), newTermName("underlying")), newTermName("asInstanceOf")), List(Ident(newTypeName(table.moduleName))))))
-      DefDef(Modifiers(Flag.IMPLICIT), newTermName("convImplicit" + yyTableName), List(), List(List(ValDef(Modifiers(PARAM), newTermName("x"), AppliedTypeTree(Ident(repTypeName), List(Ident(newTypeName(table.caseClassName)))), EmptyTree))), Ident(tableTypeName), body)
+      DefDef(Modifiers(Flag.IMPLICIT), newTermName("convImplicit" + yyTableName), List(), List(List(ValDef(Modifiers(PARAM), newTermName("x"), AppliedTypeTree(repTypeTree, List(Ident(newTypeName(table.caseClassName)))), EmptyTree))), Ident(tableTypeName), body)
     }
     def createTypeClassRow(table: Table)(symbol: Symbol): TypeDef = {
       val typeName = table.caseClassName
-      val typeType = TypeTree().setOriginal(Ident(symbol))
+      val typeType = universe match {
+        case mu: MacroUniverse => mu.TypeTree().setOriginal(Ident(symbol).asInstanceOf[mu.Tree]).asInstanceOf[Tree]
+        case _ => macroHelper.createClassFromString(symbol.fullName)
+      }
       TypeDef(NoMods, TypeName(typeName), List(), typeType)
     }
     def createValClassRow(table: Table)(symbol: Symbol): ValDef = {

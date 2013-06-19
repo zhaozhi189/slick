@@ -11,10 +11,9 @@ import slick.jdbc.StaticQuery.interpolation
 import scala.slick.SlickException
 import scala.slick.yy._
 import ch.qos.logback.core.pattern.util.AsIsEscapeUtil
+import scala.slick.yy.test.YYDefinitions._
 
 object ShallowTest extends DBTestObject(TestDBs.H2Mem, TestDBs.H2Disk, TestDBs.HsqldbMem, TestDBs.HsqldbDisk, TestDBs.SQLiteMem, TestDBs.SQLiteDisk /*, TestDBs.DerbyMem, TestDBs.DerbyDisk*/ )
-
-@Entity("COFFEES") case class Coffee(@Entity("COF_NAME") name: String, sales: Int, flavor: Option[String])
 
 class ShallowTest(val tdb: TestDB) extends DBTest {
   implicit val testDriver = tdb.driver
