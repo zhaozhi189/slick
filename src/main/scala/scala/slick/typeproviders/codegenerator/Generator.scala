@@ -43,6 +43,8 @@ trait Generator extends TemplateComponent
         generateCodeForTypeDef(typeDef)
       case valDef: ValDef =>
         generateCodeForValDef(valDef)
+      case defDef: DefDef =>
+        generateCodeForDefDef(defDef)
       case _ => tree.toString
     }
   }

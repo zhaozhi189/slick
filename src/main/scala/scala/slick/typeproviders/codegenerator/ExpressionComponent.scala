@@ -9,7 +9,7 @@ trait ExpressionComponent { self: Generator =>
   def generateCodeForTree(tree: Tree, parent: Option[Tree]): String = {
     @inline def rec(t: Tree): String = generateCodeForTree(t, Some(tree))
     tree match {
-      case Apply(Select(qualifier, name), args) if parent.collect { case a @ Apply(_, _) => a }.isEmpty => {
+      case Apply(Select(qualifier, name), args) if parent.collect { case a @ Apply(_, _) => a }.isEmpty && Some(qualifier).collect { case n @ New(_) => n }.isEmpty => {
         val operand = generateCodeForTree(qualifier)
         val op = generateCodeForName(name)
         val arg = args match {
@@ -20,6 +20,8 @@ trait ExpressionComponent { self: Generator =>
       }
       case Apply(fun, args) =>
         s"${rec(fun)}(${args.map(rec).mkString(", ")})"
+      case Select(New(qualifier), name) =>
+        s"new ${rec(qualifier)}${generateCodeForName(name)}"
       case Select(qualifier, name) =>
         s"${rec(qualifier)}.${generateCodeForName(name)}"
       case Ident(ident) =>
@@ -46,5 +48,17 @@ trait ExpressionComponent { self: Generator =>
       ""
     else
       generateCodeForName(name.toString)
+  }
+
+  def generateCodeForModifiers(mods: Modifiers): String = {
+    val flags = Map(Flag.ABSTRACT -> "abstract",
+      Flag.OVERRIDE -> "override",
+      Flag.IMPLICIT -> "implicit",
+      Flag.PRIVATE -> "private"
+    )
+    flags.filter(x => mods.hasFlag(x._1)).map(_._2) match {
+      case Nil => ""
+      case list => list.mkString("", " ", " ")
+    }
   }
 }
