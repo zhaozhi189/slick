@@ -22,7 +22,8 @@ class SlickTypeTransformer[C <: Context](ctx: C, override val debugLevel: Int = 
       case TypeApplyCtx => inType match {
         case TypeRef(pre, sym, Nil) if !rewiredToThis(inType.typeSymbol.name.toString) =>
           if (isVirtualType(inType))
-            Select(This(newTypeName(className)), newTypeName(inType.typeSymbol.name.toString + "Row"))
+            //            Select(This(newTypeName(className)), newTypeName(inType.typeSymbol.name.toString + "Row"))
+            Ident(newTypeName(inType.typeSymbol.name.toString + "Row"))
           else
             TypeTree(inType)
         case TypeRef(pre, sym, args) if !isFunctionType(inType) && !args.isEmpty => {
@@ -42,7 +43,8 @@ class SlickTypeTransformer[C <: Context](ctx: C, override val debugLevel: Int = 
         case TypeRef(pre, sym, Nil) =>
           if (isVirtualType(inType))
             AppliedTypeTree(Select(This(newTypeName(className)), newTypeName("CakeRep")),
-              List(Select(This(newTypeName(className)), newTypeName(inType.typeSymbol.name.toString + "Row"))))
+              //            		List(Select(This(newTypeName(className)), newTypeName(inType.typeSymbol.name.toString + "Row"))))
+              List(Ident(newTypeName(inType.typeSymbol.name.toString + "Row"))))
           else
             super.constructPolyTree(typeCtx, inType)
         case TypeRef(pre, sym, args) if isFunctionType(inType) => {

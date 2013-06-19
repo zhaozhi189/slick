@@ -12,6 +12,7 @@ import scala.collection.mutable.HashMap
 import scala.reflect.macros.Context
 
 trait YYTransformers {
+  val USE_VIRTUAL_CG = true
   val universe: Universe
   import universe._
   import Flag.CASE
@@ -27,7 +28,10 @@ trait YYTransformers {
     import ch.epfl.yinyang.transformers.PostProcessing._
     def getStatementsFromTables: List[(StatementContext, Tree)] = {
       val cv = new ClassVirtualization()
-      cv.getStatementsFromTables(virtualSymbols)
+      if (USE_VIRTUAL_CG)
+        List((ClassContext, macroHelper.createImport(macroHelper.createObjectFromString("_root_.scala.slick.yy.VirtualizedCG"), Nil)))
+      else
+        cv.getStatementsFromTables(virtualSymbols)
     }
   }
   // workaround for compatibility of 2.10 and macro paradise

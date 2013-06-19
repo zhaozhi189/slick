@@ -215,39 +215,37 @@ class YYTest {
   //  }
 
   @Test
-  def transferabilityTest {
+  def composabilityTest {
     initCoffeeTable()
     import Shallow._
     import Shallow.TestH2._
 
-//    import NestingObject.Level2.CoffeeNested2
-//
-//    val q = shallow {
-//      Queryable[CoffeeNested2] filter (x => x.idNumber == 3)
-//    }
-//    val r7 = shallow {
-//      q.toSeq
-//    }
-//    assertEquals("Query filter == map (_1, _2) of Virtualized++ Table + Annotation", CoffeeNested2(3, "three"), r7.head)
-//
-//    val qq = shallow {
-//      Queryable[CoffeeNested2] map (x => x.idNumber)
-//    }
-//    val r8 = shallow {
-//      (qq filter (x => x < 3)).toSeq
-//    }
-//    assertEquals("Query filter == map (_1, _2) of Virtualized++ Table + Annotation", List(1, 2), r8.toList)
+    val q = shallow {
+      Queryable[Coffee1] filter (x => x.id == 3)
+    }
+    val r7 = shallow {
+      q.toSeq
+    }
+    assertEquals("Query filter == map (_1, _2) of Virtualized++ Table + Annotation", Coffee1(3, "three"), r7.head)
 
-    //    val q0 = shallow {
-    //      Queryable[CoffeeNested2]
-    //    }
-    //    val q1 = slickYYVPDebug {
-    //      q0 filter ((x: CoffeeNested2) => x.idNumber == 3)
-    //    }
-    //    val r9 = slickYYVPDebug {
-    //      q1.toSeq
-    //    }
-    //    assertEquals("Query filter == map (_1, _2) of Virtualized++ Table + Annotation", CoffeeNested2(3, "three"), r9.head)
+    val qq = shallow {
+      Queryable[Coffee1] map (x => x.id)
+    }
+    val r8 = shallow {
+      (qq filter (x => x < 3)).toSeq
+    }
+    assertEquals("Query filter == map (_1, _2) of Virtualized++ Table + Annotation", List(1, 2), r8.toList)
+
+    val q0 = shallow {
+      Queryable[Coffee1]
+    }
+    val q1 = shallow {
+      q0 filter (x => x.id == 3)
+    }
+    val r9 = shallow {
+      q1.toSeq
+    }
+    assertEquals("Query filter == map (_1, _2) of Virtualized++ Table + Annotation", Coffee1(3, "three"), r9.head)
     //    shallowDebug {
     //      val t = CoffeeNested2(3, "three")
     //    }
