@@ -16,7 +16,7 @@ class HoistClientOps extends Phase {
       val ResultSetMapping(_, comp: Comprehension, _) = rsm
       /* Temporarily create a comprehension that selects a StructNode instead of
        * a ProductNode at the top level. This makes the actual hoisting simpler. */
-      val withStruct = Phase.fuseComprehensions.ensureStruct(comp.asInstanceOf[Comprehension])
+      val withStruct = Phase.liftAggregates.ensureStruct(comp.asInstanceOf[Comprehension])
       val Some(Pure(StructNode(ch))) = withStruct.select
       val base = new AnonSymbol
       val proj = ProductNode(ch.map { case (sym, _) => Select(Ref(base), sym) })

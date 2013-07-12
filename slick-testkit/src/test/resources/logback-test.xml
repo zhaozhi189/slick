@@ -22,6 +22,7 @@
     <logger name="scala.slick.compiler.PruneFields"               level="${log.qcomp.pruneFields:-inherited}" />
     <logger name="scala.slick.compiler.ResolveZipJoins"           level="${log.qcomp.resolveZipJoins:-inherited}" />
     <logger name="scala.slick.compiler.ConvertToComprehensions"   level="${log.qcomp.convertToComprehensions:-inherited}" />
+    <logger name="scala.slick.compiler.LiftAggregates"            level="${log.qcomp.liftAggregates:-inherited}" />
     <logger name="scala.slick.compiler.FuseComprehensions"        level="${log.qcomp.fuseComprehensions:-inherited}" />
     <logger name="scala.slick.compiler.FixRowNumberOrdering"      level="${log.qcomp.fixRowNumberOrdering:-inherited}" />
     <logger name="scala.slick.compiler.HoistClientOps"            level="${log.qcomp.hoistClientOps:-inherited}" />

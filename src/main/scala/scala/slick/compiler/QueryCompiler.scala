@@ -81,6 +81,7 @@ object QueryCompiler {
   val relationalPhases = Vector(
     Phase.resolveZipJoins,
     Phase.convertToComprehensions,
+    Phase.liftAggregates,
     Phase.fuseComprehensions,
     Phase.fixRowNumberOrdering,
     Phase.hoistClientOps
@@ -123,6 +124,7 @@ object Phase {
   val resolveZipJoins = new ResolveZipJoins
   val assignTypes = new AssignTypes
   val convertToComprehensions = new ConvertToComprehensions
+  val liftAggregates = new LiftAggregates
   val fuseComprehensions = new FuseComprehensions
   val fixRowNumberOrdering = new FixRowNumberOrdering
   val hoistClientOps = new HoistClientOps

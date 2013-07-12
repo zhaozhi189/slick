@@ -147,6 +147,118 @@ class ConvertToComprehensions extends Phase {
   }
 }
 
+class LiftAggregates extends Phase {
+  val name = "liftAggregates"
+
+  def apply(state: CompilerState) = state.map { n =>
+    ClientSideOp.mapServerSide(n)(lift)
+  }
+
+  def lift(n: Node): Node = (n match {
+    case c: Comprehension =>
+      liftAggregates(createSelect(c)).nodeWithComputedType(SymbolScope.empty, false, true)
+    case n => n
+  }).nodeMapChildren(lift, keepType = true)
+
+  /** Lift aggregates of sub-queries into the 'from' list or inline them
+    * (if they would refer to unreachable symbols when used in 'from'
+    * position). */
+  def liftAggregates(c: Comprehension): Comprehension = {
+    val lift = ArrayBuffer[(AnonSymbol, AnonSymbol, Library.AggregateFunctionSymbol, Comprehension)]()
+    val seenGens = HashMap[Symbol, Node]()
+    def tr(n: Node): Node = n match {
+      //TODO Once we can recognize structurally equivalent sub-queries and merge them, c2 could be a Ref
+      case ap @ Apply(s: Library.AggregateFunctionSymbol, Seq(c2: Comprehension)) =>
+        if(hasRefToOneOf(c2, seenGens.keySet)) {
+          logger.debug("Seen reference to one of {"+seenGens.keys.mkString(", ")+"} in "+c2+" -- inlining")
+          // This could still produce illegal SQL code if the reference is nested within another
+          // sub-query somewhere in 'from' position. Not much we can do about this though.
+          s match {
+            case Library.CountAll =>
+              if(c2.from.isEmpty) Library.Cast.typed(ap.nodeType, LiteralNode(1))
+              else c2.copy(select = Some(Pure(ProductNode(Seq(Library.Count.typed(ap.nodeType, LiteralNode(1)))))))
+            case s =>
+              val c3 = ensureStruct(c2).nodeWithComputedType(SymbolScope.empty, false, true)
+              // All standard aggregate functions operate on a single column
+              val Some(Pure(StructNode(Seq((_, expr))))) = c3.select
+              val elType = c3.nodeType.asCollectionType.elementType
+              c3.copy(select = Some(Pure(ProductNode(Seq(Apply(s, Seq(expr))(elType))))))
+          }
+        } else {
+          val a = new AnonSymbol
+          val f = new AnonSymbol
+          lift += ((a, f, s, c2))
+          Select(Ref(a), f)
+        }
+      case c: Comprehension => c // don't recurse into sub-queries
+      case n => n.nodeMapChildren(tr, keepType = true)
+    }
+    val c2 = c.nodeMapScopedChildren {
+      case (Some(gen), ch) =>
+        seenGens += gen -> ch
+        ch
+      case (None, ch) => tr(ch)
+    }
+    if(lift.isEmpty) c2
+    else {
+      val newFrom = lift.map { case (a, f, s, c2) =>
+        val a2 = new AnonSymbol
+        val (c2b, call) = s match {
+          case Library.CountAll =>
+            (c2, Library.Count.typed(c2.nodeType.asCollectionType.elementType, LiteralNode(1)))
+          case s =>
+            val c3 = ensureStruct(c2).nodeWithComputedType(SymbolScope.empty, false, true)
+            // All standard aggregate functions operate on a single column
+            val Some(Pure(StructNode(Seq((f2, _))))) = c3.select
+            val elType = c3.nodeType.asCollectionType.elementType
+            (c3, Apply(s, Seq(Select(Ref(a2), f2)))(elType))
+        }
+        a -> Comprehension(from = Seq(a2 -> c2b),
+          select = Some(Pure(StructNode(IndexedSeq(f -> call)))))
+      }
+      logger.debug("Introducing new generator(s) "+newFrom.map(_._1).mkString(", ")+" for aggregations")
+      c2.copy(from = c.from ++ newFrom)
+    }
+  }
+
+  /** Rewrite a Comprehension to always return a StructNode */
+  def ensureStruct(c: Comprehension): Comprehension = {
+    c.select match {
+      case Some(Pure(_: StructNode)) => c
+      case Some(Pure(ProductNode(ch))) =>
+        val selStr = {
+          val n = StructNode(ch.iterator.map(n => (new AnonSymbol) -> n).toIndexedSeq)
+          if(n.nodeChildren.exists(_.nodeType == UnassignedType)) n
+          else n.withComputedTypeNoRec
+        }
+        c.copy(select = Some(Pure(selStr)))
+      case Some(Pure(n)) =>
+        c.copy(select = Some(Pure(StructNode(IndexedSeq((new AnonSymbol) -> n)))))
+      case _ =>
+        throw new SlickException("Unexpected Comprehension shape in "+c)
+    }
+  }
+
+  /** Create a select for a Comprehension without one. */
+  def createSelect(c: Comprehension): Comprehension = if(c.select.isDefined) c else {
+    c.from.last match {
+      case (sym, UnionLeft(Comprehension(_, _, _, _, Some(Pure(StructNode(struct))), _, _))) =>
+        val r = Ref(sym)
+        val copyStruct = StructNode(struct.map { case (field, _) =>
+          (field, Select(r, field))
+        })
+        c.copy(select = Some(Pure(copyStruct))).nodeWithComputedType(SymbolScope.empty, false, true)
+      /*case (sym, Pure(StructNode(struct))) =>
+        val r = Ref(sym)
+        val copyStruct = StructNode(struct.map { case (field, _) =>
+          (field, Select(r, field))
+        })
+        c.copy(select = Some(Pure(copyStruct)))*/
+      case _ => c
+    }
+  }
+}
+
 /** Fuse sub-comprehensions into their parents. */
 class FuseComprehensions extends Phase {
   val name = "fuseComprehensions"
@@ -158,11 +270,11 @@ class FuseComprehensions extends Phase {
   def fuse(n: Node): Node = n.nodeMapChildren(fuse, keepType = true) match {
     case c: Comprehension =>
       logger.debug("Checking:",c)
-      val fused = createSelect(c) match {
-        case c2: Comprehension if isFuseableOuter(c2) => fuseComprehension(c2)
-        case c2 => c2
+      val fused = c match {
+        case c: Comprehension if isFuseableOuter(c) => fuseComprehension(c)
+        case c => c
       }
-      liftAggregates(fused).nodeWithComputedType(SymbolScope.empty, false, true)
+      fused.nodeWithComputedType(SymbolScope.empty, false, true)
     case n => n
   }
 
@@ -268,86 +380,6 @@ class FuseComprehensions extends Phase {
     else c
   }
 
-  /** Lift aggregates of sub-queries into the 'from' list or inline them
-    * (if they would refer to unreachable symbols when used in 'from'
-    * position). */
-  def liftAggregates(c: Comprehension): Comprehension = {
-    val lift = ArrayBuffer[(AnonSymbol, AnonSymbol, Library.AggregateFunctionSymbol, Comprehension)]()
-    val seenGens = HashMap[Symbol, Node]()
-    def tr(n: Node): Node = n match {
-      //TODO Once we can recognize structurally equivalent sub-queries and merge them, c2 could be a Ref
-      case ap @ Apply(s: Library.AggregateFunctionSymbol, Seq(c2: Comprehension)) =>
-        if(hasRefToOneOf(c2, seenGens.keySet)) {
-          logger.debug("Seen reference to one of {"+seenGens.keys.mkString(", ")+"} in "+c2+" -- inlining")
-          // This could still produce illegal SQL code if the reference is nested within another
-          // sub-query somewhere in 'from' position. Not much we can do about this though.
-          s match {
-            case Library.CountAll =>
-              if(c2.from.isEmpty) Library.Cast.typed(ap.nodeType, LiteralNode(1))
-              else c2.copy(select = Some(Pure(ProductNode(Seq(Library.Count.typed(ap.nodeType, LiteralNode(1)))))))
-            case s =>
-              val c3 = ensureStruct(c2).nodeWithComputedType(SymbolScope.empty, false, true)
-              // All standard aggregate functions operate on a single column
-              val Some(Pure(StructNode(Seq((_, expr))))) = c3.select
-              val elType = c3.nodeType.asCollectionType.elementType
-              c3.copy(select = Some(Pure(ProductNode(Seq(Apply(s, Seq(expr))(elType))))))
-          }
-        } else {
-          val a = new AnonSymbol
-          val f = new AnonSymbol
-          lift += ((a, f, s, c2))
-          Select(Ref(a), f)
-        }
-      case c: Comprehension => c // don't recurse into sub-queries
-      case n => n.nodeMapChildren(tr, keepType = true)
-    }
-    val c2 = c.nodeMapScopedChildren {
-      case (Some(gen), ch) =>
-        seenGens += gen -> ch
-        ch
-      case (None, ch) => tr(ch)
-    }
-    if(lift.isEmpty) c2
-    else {
-      val newFrom = lift.map { case (a, f, s, c2) =>
-        val a2 = new AnonSymbol
-        val (c2b, call) = s match {
-          case Library.CountAll =>
-            (c2, Library.Count.typed(c2.nodeType.asCollectionType.elementType, LiteralNode(1)))
-          case s =>
-            val c3 = ensureStruct(c2).nodeWithComputedType(SymbolScope.empty, false, true)
-            // All standard aggregate functions operate on a single column
-            val Some(Pure(StructNode(Seq((f2, _))))) = c3.select
-            val elType = c3.nodeType.asCollectionType.elementType
-            (c3, Apply(s, Seq(Select(Ref(a2), f2)))(elType))
-        }
-        a -> Comprehension(from = Seq(a2 -> c2b),
-          select = Some(Pure(StructNode(IndexedSeq(f -> call)))))
-      }
-      logger.debug("Introducing new generator(s) "+newFrom.map(_._1).mkString(", ")+" for aggregations")
-      c2.copy(from = c.from ++ newFrom)
-    }
-  }
-
-  /** Rewrite a Comprehension to always return a StructNode */
-  def ensureStruct(c: Comprehension): Comprehension = {
-    val c2 = createSelect(c)
-    c2.select match {
-      case Some(Pure(_: StructNode)) => c2
-      case Some(Pure(ProductNode(ch))) =>
-        val selStr = {
-          val n = StructNode(ch.iterator.map(n => (new AnonSymbol) -> n).toIndexedSeq)
-          if(n.nodeChildren.exists(_.nodeType == UnassignedType)) n
-          else n.withComputedTypeNoRec
-        }
-        c2.copy(select = Some(Pure(selStr)))
-      case Some(Pure(n)) =>
-        c2.copy(select = Some(Pure(StructNode(IndexedSeq((new AnonSymbol) -> n)))))
-      case _ =>
-        throw new SlickException("Unexpected Comprehension shape in "+c2)
-    }
-  }
-
   def select(selects: List[Symbol], base: Node): Vector[Node] = {
     logger.debug("select("+FwdPath.toString(selects)+", "+base+")")
     (selects, base) match {
@@ -366,25 +398,6 @@ class FuseComprehensions extends Phase {
     case Comprehension(from, _, _, _, None, _, _) => narrowStructure(from.head._2)
     case Comprehension(_, _, _, _, Some(n), _, _) => narrowStructure(n)
     case n => n
-  }
-
-  /** Create a select for a Comprehension without one. */
-  def createSelect(c: Comprehension): Comprehension = if(c.select.isDefined) c else {
-    c.from.last match {
-      case (sym, UnionLeft(Comprehension(_, _, _, _, Some(Pure(StructNode(struct))), _, _))) =>
-        val r = Ref(sym)
-        val copyStruct = StructNode(struct.map { case (field, _) =>
-          (field, Select(r, field))
-        })
-        c.copy(select = Some(Pure(copyStruct))).nodeWithComputedType(SymbolScope.empty, false, true)
-      /*case (sym, Pure(StructNode(struct))) =>
-        val r = Ref(sym)
-        val copyStruct = StructNode(struct.map { case (field, _) =>
-          (field, Select(r, field))
-        })
-        c.copy(select = Some(Pure(copyStruct)))*/
-      case _ => c
-    }
   }
 }
 
