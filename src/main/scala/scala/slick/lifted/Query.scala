@@ -130,7 +130,7 @@ object CanBeQueryCondition {
     def apply(value: Column[Option[Boolean]]) = value
   }
   implicit object BooleanCanBeQueryCondition extends CanBeQueryCondition[Boolean] {
-    def apply(value: Boolean) = new ConstColumn(value)
+    def apply(value: Boolean) = new LiteralColumn(value)
   }
 }
 
