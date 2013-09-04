@@ -30,4 +30,7 @@ trait Aliases {
   val SimpleLiteral = lifted.SimpleLiteral
   val TupleMethods = util.TupleMethods
   type Tag = lifted.Tag
+  type LiftedFunction[S, SU, T, TU] = lifted.LiftedFunction[S, SU, T, TU]
+  val LiftedFunction = lifted.LiftedFunction
+  type CompiledLiftedFunction[S, SU, T, TU] = lifted.CompiledLiftedFunction[S, SU, T, TU]
 }

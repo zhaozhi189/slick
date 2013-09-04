@@ -156,6 +156,8 @@ final class TableQuery[+E <: AbstractTable[_], U](shaped: ShapedValue[_ <: E, U]
     * a Path for a variable of the table's type. This method should generally
     * not be called from user code. */
   def baseTableRow: E = unpackable.value
+
+  type Q = Query[E, U]
 }
 
 object TableQuery {

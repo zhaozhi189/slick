@@ -83,6 +83,17 @@ trait ShapeLowPriority extends ShapeLowPriority1 {
 
   @inline implicit def queryShape[Level >: ShapeLevel.Nested <: ShapeLevel, M, U]: Shape[Level, Query[M, U], Seq[U], Query[M, U]] =
     repShape.asInstanceOf[Shape[Level, Query[M, U], Seq[U], Query[M, U]]]
+
+  implicit def liftedFunctionShape[S, SU, T, TU]: Shape[ShapeLevel.All, LiftedFunction[S, SU, T, TU], S => T, LiftedFunction[S, SU, T, TU]] = new Shape[ShapeLevel.All, LiftedFunction[S, SU, T, TU], S => T, LiftedFunction[S, SU, T, TU]] {
+    def pack(value: Mixed): Packed = value
+    def packedShape: Shape[ShapeLevel.All, Packed, Unpacked, Packed] = this
+    def buildParams(extract: Any => Unpacked): Packed =
+      throw new SlickException("Shape does not have the same Mixed and Unpacked type")
+    def encodeRef(value: Mixed, path: List[Symbol]) =
+      throw new SlickException("Cannot encode a reference into a LiftedFunction Shape")
+    def toNode(value: Mixed): Node =
+      throw new SlickException("Cannot create a Node from a LiftedFunction Shape")
+  }
 }
 
 class ShapeLowPriority1 extends ShapeLowPriority2 {

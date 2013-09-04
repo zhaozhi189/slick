@@ -6,22 +6,21 @@ import com.typesafe.slick.testkit.util.{RelationalTestDB, TestkitTest}
 class TemplateTest extends TestkitTest[RelationalTestDB] {
   import tdb.profile.simple._
 
-  class Users(tag: Tag) extends Table[(Int, String)](tag, "users") {
-    def id = column[Int]("id", O.PrimaryKey, O.AutoInc)
-    def first = column[String]("first")
-    def * = (id, first)
-  }
-  lazy val users = TableQuery[Users]
+  def testTemplate {
+    class Users(tag: Tag) extends Table[(Int, String)](tag, "users") {
+      def id = column[Int]("id", O.PrimaryKey, O.AutoInc)
+      def first = column[String]("first")
+      def * = (id, first)
+    }
+    lazy val users = TableQuery[Users]
 
-  class Orders(tag: Tag) extends Table[(Int, Int, String)](tag, "orders") {
-    def userID = column[Int]("userID")
-    def orderID = column[Int]("orderID", O.PrimaryKey, O.AutoInc)
-    def product = column[String]("product")
-    def * = (userID, orderID, product)
-  }
-  lazy val orders = TableQuery[Orders]
-
-  def test {
+    class Orders(tag: Tag) extends Table[(Int, Int, String)](tag, "orders") {
+      def userID = column[Int]("userID")
+      def orderID = column[Int]("orderID", O.PrimaryKey, O.AutoInc)
+      def product = column[String]("product")
+      def * = (userID, orderID, product)
+    }
+    lazy val orders = TableQuery[Orders]
 
     (users.ddl ++ orders.ddl).create
 
@@ -61,5 +60,26 @@ class TemplateTest extends TestkitTest[RelationalTestDB] {
     assertEquals(List("Apu"), q5a.run)
     val q5b = userNameByIDOrAll(None)
     assertEquals(List("Homer","Marge","Apu","Carl","Lenny"), q5b.run)
+  }
+
+  def testLiftedFunction {
+    class T(tag: Tag) extends Table[(Int, String)](tag, "t_lifted") {
+      def id = column[Int]("id", O.PrimaryKey)
+      def s = column[String]("s")
+      def * = (id, s)
+    }
+    val ts = TableQuery[T]
+    ts.ddl.create
+    ts ++= Seq((1, "a"), (2, "b"), (3, "c"))
+
+    val filterById = LiftedFunction((id: Column[Int], q: ts.Q) => q.filter(_.id ===  id))
+    val byId = LiftedFunction { id: Column[Int] => ts.filter(_.id ===  id) }
+    val byId2 = LiftedFunction((id: Column[Int]) => (id, ts: ts.Q)) >>> filterById
+    val byIdC = byId.compile
+    //val r1 = byId(1).run
+    //val r2 = byIdC(1).run
+
+    val a1 = LiftedFunction { dummy: Unit => LiteralColumn(42) }
+    ()
   }
 }
