@@ -102,9 +102,9 @@ abstract class Query[+E, U] extends Rep[Seq[U]] { self =>
   def drop(num: Int): Query[E, U] = new WrappingQuery[E, U](Drop(toNode, num), unpackable)
 }
 
-object Query extends Query[Column[Unit], Unit] {
+object Query extends Query[Unit, Unit] {
   def toNode = packed
-  def unpackable = ShapedValue(Column.forNode[Unit](Pure(LiteralNode[Unit](()))), Shape.columnBaseShape[ShapeLevel.Flat, Unit, Column[Unit]])
+  def unpackable = ShapedValue((), Shape.unitShape[ShapeLevel.Flat])
 
   def apply[E, U, R](value: E)(implicit unpack: Shape[_ <: ShapeLevel.Flat, E, U, R]): Query[R, U] = {
     val unpackable = ShapedValue(value, unpack).packedValue
