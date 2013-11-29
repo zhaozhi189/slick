@@ -19,6 +19,25 @@ object TupleSupport {
     case p: ProductWrapper => p.seq
     case p => p.productIterator.toIndexedSeq
   }
+
+  import scala.slick.collection.heterogenous._
+  import scala.slick.collection.heterogenous.syntax._
+
+  def buildHList(s: IndexedSeq[Any]): Product = s.length match {
+<#list 1..22 as i>
+    case ${i} => (<#list 1..i as j>s(${j-1}) :: </#list>HNil)
+</#list>
+    case _ => new ProductWrapper(s)
+  }
+
+<#list 2..22 as i>
+  def hlist2tuple${i}[<#list 1..i as j>T${j}<#if i != j>,</#if></#list>](hlist: (<#list 1..i as j>T${j} :: </#list>HNil)) =
+    buildTuple(hlist.productIterator.toIndexedSeq).asInstanceOf[(<#list 1..i-1 as j>T${j}<#if i-1 != j>,</#if></#list>, T${i})]
+</#list>
+<#list 2..22 as i>
+  def tuple2hlist${i}[<#list 1..i as j>T${j}<#if i != j>,</#if></#list>](tuple: (<#list 1..i-1 as j>T${j}<#if i-1 != j>,</#if></#list>, T${i})) =
+    buildHList(tuple.productIterator.toIndexedSeq).asInstanceOf[(<#list 1..i as j>T${j} :: </#list>HNil)]
+</#list>
 }
 
 /** Extension methods for prepending and appending values to tuples */

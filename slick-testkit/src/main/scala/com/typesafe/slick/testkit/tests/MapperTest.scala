@@ -312,4 +312,24 @@ class MapperTest extends TestkitTest[JdbcTestDB] {
       .map { case id :: b :: ss :: HNil => id :: ss :: (42 :: HNil) :: HNil }
     assertEquals(Vector(3 :: "bb" :: (42 :: HNil) :: HNil, 2 :: "cc" :: (42 :: HNil) :: HNil), q2.run)
   }
+  def testMappedHList {
+    import scala.slick.collection.heterogenous._
+    import scala.slick.collection.heterogenous.syntax._
+    import scala.slick.util.TupleSupport._
+
+    case class B(id:Int, b:Boolean, s:String)
+    class Bs(tag: Tag) extends Table[B](tag, "hlist_c") {
+      def id = column[Int]("id", O.PrimaryKey)
+      def b = column[Boolean]("b")
+      def s = column[String]("s")
+      def * = id :: b :: s :: HNil <> ((h:(Int::Boolean::String::HNil)) => B.tupled(hlist2tuple3(h)),(b:B) => B.unapply(b).map(tuple2hlist3))
+    }
+    val bs = TableQuery[Bs]
+    bs.ddl.create
+
+    bs += B(1, true, "a")
+
+    val q1 = for { b <- bs } yield b
+    assertEquals(B(1, true, "a"), q1.first)
+  }
 }
