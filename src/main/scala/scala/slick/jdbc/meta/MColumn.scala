@@ -10,13 +10,15 @@ import scala.slick.driver.JdbcTypesComponent
 case class MColumn(
   table: MQName, name: String, sqlType: Int, typeName: String,
   size: Option[Int], decimalDigits: Option[Int], numPrecRadix: Int, nullable: Option[Boolean], remarks: Option[String],
-  columnDef: Option[String], charOctetLength: Int, ordinalPos: Int, isNullable: Option[Boolean], scope: Option[MQName],
+  columnDef: Option[String], charOctetLength: Int, ordinalPosition: Int, isNullable: Option[Boolean], scope: Option[MQName],
   sourceDataType: Option[Int], isAutoInc: Option[Boolean]) {
 
   @deprecated("Use name instead.","2.0.0")
   def column = name
   @deprecated("Use size instead.","2.0.0")
   def columnSize = size
+  @deprecated("Use ordinalPosition instead.","2.0.0")
+  def ordinalPos = ordinalPosition
 
   def sqlTypeName = JdbcTypesComponent.typeNames.get(sqlType)
   def getColumnPrivileges = MColumnPrivilege.getColumnPrivileges(table, name)
