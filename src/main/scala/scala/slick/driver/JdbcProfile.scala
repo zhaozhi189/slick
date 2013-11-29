@@ -7,6 +7,8 @@ import scala.slick.lifted._
 import scala.slick.jdbc.{JdbcMappingCompilerComponent, MutatingUnitInvoker, JdbcBackend}
 import scala.slick.profile.{SqlDriver, SqlProfile, Capability}
 import scala.slick.SlickException
+import scala.slick.jdbc.meta.MTable
+import scala.slick.jdbc.UnitInvoker
 
 /**
  * A profile for accessing SQL databases via JDBC.
@@ -52,6 +54,11 @@ trait JdbcProfile extends SqlProfile with JdbcTableComponent
     implicit def productQueryToUpdateInvoker[T](q: Query[_ <: ColumnBase[T], T]): UpdateInvoker[T] =
       createUpdateInvoker(updateCompiler.run(q.toNode).tree, ())
   }
+
+  /**
+   * Jdbc meta data for all tables
+   */
+  def getTables: UnitInvoker[MTable] = MTable.getTables()
 }
 
 object JdbcProfile {
