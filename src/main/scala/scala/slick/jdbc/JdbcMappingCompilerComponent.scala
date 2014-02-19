@@ -6,6 +6,9 @@ import scala.slick.driver.JdbcDriver
 import scala.slick.util.SQLBuilder
 import scala.slick.SlickException
 import scala.slick.profile.RelationalMappingCompilerComponent
+import scala.slick.ast.FieldSymbol
+import scala.slick.ast.CompiledStatement
+import scala.slick.ast.Insert
 
 /** JDBC driver component which contains the mapping compiler and insert compiler */
 trait JdbcMappingCompilerComponent extends RelationalMappingCompilerComponent { driver: JdbcDriver =>
@@ -14,21 +17,26 @@ trait JdbcMappingCompilerComponent extends RelationalMappingCompilerComponent { 
   type RowUpdater = PositionedResult
 
   trait MappingCompiler extends super.MappingCompiler {
-    def createColumnConverter(n: Node, path: Node, option: Boolean, column: Option[FieldSymbol]): ResultConverter = {
-      val ti = driver.typeInfoFor(n.nodeType)
-      val autoInc = column.map(_.options.contains(ColumnOption.AutoInc)).getOrElse(false)
-      new ResultConverter {
-        def read(pr: RowReader) =
-          if(option) ti.nextValue(pr)
-          else ti.nextValueOrElse(
-            if(ti.nullable) None
-            else throw new SlickException("Read NULL value for ResultSet column "+n),
-            pr
-          )
-        def update(value: Any, pr: RowUpdater) = ti.updateValue(value, pr)
-        def set(value: Any, pp: RowWriter, forced: Boolean) =
-          if(forced || !autoInc) ti.setValue(value, pp)
-      }
+    def createColumnConverter(n: Node, path: Node, optionApply: Boolean, column: Option[FieldSymbol]): ResultConverter = {
+      val JdbcType(ti, option) = n.nodeType
+      val autoInc = column.fold(false)(_.options.contains(ColumnOption.AutoInc))
+      if(option) new OptionResultConverter(ti, autoInc)
+      else new BaseResultConverter(ti, autoInc, column.fold(n.toString)(_.name))
+    }
+
+    class BaseResultConverter(ti: JdbcType[Any], autoInc: Boolean, name: String) extends ResultConverter {
+      def read(pr: RowReader) =
+        ti.nextValueOrElse(throw new SlickException("Read NULL value for ResultSet column "+name), pr)
+      def update(value: Any, pr: RowUpdater) = ti.updateValue(value, pr)
+      def set(value: Any, pp: RowWriter, forced: Boolean) =
+        if(forced || !autoInc) ti.setValue(value, pp)
+    }
+
+    class OptionResultConverter(ti: JdbcType[Any], autoInc: Boolean) extends ResultConverter {
+      def read(pr: RowReader) = ti.nextOption(pr)
+      def update(value: Any, pr: RowUpdater) = ti.updateOption(value.asInstanceOf[Option[Any]], pr)
+      def set(value: Any, pp: RowWriter, forced: Boolean) =
+        if(forced || !autoInc) ti.setOption(value.asInstanceOf[Option[Any]], pp)
     }
   }
 
