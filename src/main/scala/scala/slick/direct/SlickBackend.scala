@@ -77,13 +77,12 @@ import CustomNodes._
 
 class SlickBackend( val driver: JdbcDriver, mapper:Mapper ) extends QueryableBackend{
   type Session = JdbcDriver#Backend#Session
-  import slick.ast.ScalaBaseType
   val columnTypes = {
     Map( // FIXME use symbols instead of strings for type names here
-       typeOf[Int].typeSymbol     -> ScalaBaseType.intType
-      ,typeOf[Double].typeSymbol  -> ScalaBaseType.doubleType
-      ,typeOf[String].typeSymbol  -> ScalaBaseType.stringType
-      ,typeOf[Boolean].typeSymbol -> ScalaBaseType.booleanType
+       typeOf[Int].typeSymbol     -> sq.ScalaBaseType.intType
+      ,typeOf[Double].typeSymbol  -> sq.ScalaBaseType.doubleType
+      ,typeOf[String].typeSymbol  -> sq.ScalaBaseType.stringType
+      ,typeOf[Boolean].typeSymbol -> sq.ScalaBaseType.booleanType
     )
   }
   /** generates a map from Scala symbols to Slick FunctionSymbols from description in OperatorMapping */
@@ -271,9 +270,9 @@ class SlickBackend( val driver: JdbcDriver, mapper:Mapper ) extends QueryableBac
       val string_types = List("String","java.lang.String")
       tree match {
         // explicitly state types here until SQ removes type parameters and type mapper from LiteralColumn
-        case Literal(Constant(x:Int))    => sq.LiteralNode(driver.columnTypes.intJdbcType, x)
-        case Literal(Constant(x:String)) => sq.LiteralNode(driver.columnTypes.stringJdbcType, x)
-        case Literal(Constant(x:Double)) => sq.LiteralNode(driver.columnTypes.doubleJdbcType, x)
+        case Literal(Constant(x:Int))    => sq.LiteralNode(sq.ScalaBaseType.intType, x)
+        case Literal(Constant(x:String)) => sq.LiteralNode(sq.ScalaBaseType.stringType, x)
+        case Literal(Constant(x:Double)) => sq.LiteralNode(sq.ScalaBaseType.doubleType, x)
         case ident@Ident(name) if !scope.contains(ident.symbol) => // TODO: move this into a separate inlining step in queryable
           ident.symbol.asFreeTerm.value match {
             case q:BaseQueryable[_] => val (tpe,query) = toQuery( q ); query

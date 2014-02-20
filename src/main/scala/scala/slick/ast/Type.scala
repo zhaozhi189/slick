@@ -58,6 +58,7 @@ object OptionType {
       else OptionType(e2)
     }
   }
+  def unapply(o: OptionType) = Some(o.elementType)
 }
 
 final case class ProductType(elements: IndexedSeq[Type]) extends Type {
@@ -253,7 +254,7 @@ trait ScalaType[T] extends TypedType[T] {
   final def scalaType = this
 }
 
-class ScalaBaseType[T](implicit val tag: ClassTag[T], val ordering: scala.math.Ordering[T]) extends ScalaType[T] with BaseTypedType[T] {
+class ScalaBaseType[T](implicit val tag: ClassTag[T], val ordering: scala.math.Ordering[T] = null) extends ScalaType[T] with BaseTypedType[T] {
   override def toString = "ScalaType[" + tag.runtimeClass.getName + "]"
   def nullable = false
   def ordered = ordering ne null

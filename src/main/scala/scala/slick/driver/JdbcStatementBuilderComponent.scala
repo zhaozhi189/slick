@@ -236,8 +236,8 @@ trait JdbcStatementBuilderComponent { driver: JdbcDriver =>
       case Library.Database() if !capabilities.contains(RelationalProfile.capabilities.functionDatabase) =>
         b += "''"
       case Library.Pi() if !hasPiFunction => b += pi
-      case Library.Degrees(ch) if !hasRadDegConversion => b"(180.0/!${Library.Pi.typed(columnTypes.bigDecimalJdbcType)}*$ch)"
-      case Library.Radians(ch) if!hasRadDegConversion => b"(!${Library.Pi.typed(columnTypes.bigDecimalJdbcType)}/180.0*$ch)"
+      case Library.Degrees(ch) if !hasRadDegConversion => b"(180.0/!${Library.Pi.typed(ScalaBaseType.bigDecimalType)}*$ch)"
+      case Library.Radians(ch) if!hasRadDegConversion => b"(!${Library.Pi.typed(ScalaBaseType.bigDecimalType)}/180.0*$ch)"
       case s: SimpleFunction =>
         if(s.scalar) b"{fn "
         b"${s.name}("

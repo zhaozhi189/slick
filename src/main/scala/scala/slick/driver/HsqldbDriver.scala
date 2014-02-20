@@ -34,7 +34,6 @@ trait HsqldbDriver extends JdbcDriver { driver =>
 
   override def getTables: Invoker[MTable] = MTable.getTables(None, None, None, Some(Seq("TABLE")))
 
-  override val columnTypes = new JdbcTypes
   override def createQueryBuilder(n: Node, state: CompilerState): QueryBuilder = new QueryBuilder(n, state)
   override def createTableDDLBuilder(table: Table[_]): TableDDLBuilder = new TableDDLBuilder(table)
   override def createSequenceDDLBuilder(seq: Sequence[_]): SequenceDDLBuilder[_] = new SequenceDDLBuilder(seq)
@@ -68,15 +67,16 @@ trait HsqldbDriver extends JdbcDriver { driver =>
     }
   }
 
-  class JdbcTypes extends super.JdbcTypes {
-    override val byteArrayJdbcType = new ByteArrayJdbcType {
-      override val sqlTypeName = "LONGVARBINARY"
-    }
-    override val uuidJdbcType = new UUIDJdbcType {
-      override def sqlType = java.sql.Types.BINARY
-      override def sqlTypeName = "BINARY(16)"
-    }
+  class ByteArrayJdbcType extends super.ByteArrayJdbcType {
+    override val sqlTypeName = "LONGVARBINARY"
   }
+  registerType(new ByteArrayJdbcType)
+
+  class UUIDJdbcType extends super.UUIDJdbcType {
+    override def sqlType = java.sql.Types.BINARY
+    override def sqlTypeName = "BINARY(16)"
+  }
+  registerType(new UUIDJdbcType)
 
   class TableDDLBuilder(table: Table[_]) extends super.TableDDLBuilder(table) {
     override protected def createIndex(idx: Index) = {

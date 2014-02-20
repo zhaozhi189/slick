@@ -20,9 +20,6 @@ trait JdbcProfile extends SqlProfile with JdbcTableComponent
   val compiler = QueryCompiler.relational
   val simple: SimpleQL with Implicits = new SimpleQL with Implicits {}
   lazy val Implicit: Implicits = simple
-  type ColumnType[T] = JdbcType[T]
-  type BaseColumnType[T] = JdbcType[T] with BaseTypedType[T]
-  val columnTypes = new JdbcTypes
   lazy val MappedColumnType = MappedJdbcType
 
   override protected def computeCapabilities = super.computeCapabilities ++ JdbcProfile.capabilities.all

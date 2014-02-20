@@ -62,7 +62,6 @@ trait DerbyDriver extends JdbcDriver { driver =>
   override def getTables: Invoker[MTable] = MTable.getTables(None, None, None, Some(Seq("TABLE")))
 
   override val compiler = QueryCompiler.relational + Phase.rewriteBooleans
-  override val columnTypes = new JdbcTypes
   override def createQueryBuilder(n: Node, state: CompilerState): QueryBuilder = new QueryBuilder(n, state)
   override def createTableDDLBuilder(table: Table[_]): TableDDLBuilder = new TableDDLBuilder(table)
   override def createColumnDDLBuilder(column: FieldSymbol, table: Table[_]): ColumnDDLBuilder = new ColumnDDLBuilder(column)
@@ -87,7 +86,7 @@ trait DerbyDriver extends JdbcDriver { driver =>
           val tn =
             (if(ch.length == 2) ch(1).asInstanceOf[LiteralNode].value.asInstanceOf[String]
             else jdbcTypeFor(c.nodeType).sqlTypeName).toLowerCase
-          if(tn == "varchar") (true, columnTypes.stringJdbcType.sqlTypeName)
+          if(tn == "varchar") (true, jdbcTypes(ScalaBaseType.stringType).sqlTypeName)
           else if(tn.startsWith("varchar")) (true, tn)
           else (false, tn)
         }
@@ -159,21 +158,18 @@ trait DerbyDriver extends JdbcDriver { driver =>
     }
   }
 
-  class JdbcTypes extends super.JdbcTypes {
-    override val booleanJdbcType = new BooleanJdbcType
-    override val uuidJdbcType = new UUIDJdbcType
-
-    /* Derby does not have a proper BOOLEAN type. The suggested workaround is
-     * SMALLINT with constants 1 and 0 for TRUE and FALSE. */
-    class BooleanJdbcType extends super.BooleanJdbcType {
-      override def valueToSQLLiteral(value: Boolean) = if(value) "1" else "0"
-    }
-
-    class UUIDJdbcType extends super.UUIDJdbcType {
-      override def sqlType = java.sql.Types.BINARY
-      override def sqlTypeName = "CHAR(16) FOR BIT DATA"
-    }
+  /* Derby does not have a proper BOOLEAN type. The suggested workaround is
+   * SMALLINT with constants 1 and 0 for TRUE and FALSE. */
+  class BooleanJdbcType extends super.BooleanJdbcType {
+    override def valueToSQLLiteral(value: Boolean) = if(value) "1" else "0"
   }
+  registerType(new BooleanJdbcType)
+
+  class UUIDJdbcType extends super.UUIDJdbcType {
+    override def sqlType = java.sql.Types.BINARY
+    override def sqlTypeName = "CHAR(16) FOR BIT DATA"
+  }
+  registerType(new UUIDJdbcType)
 }
 
 object DerbyDriver extends DerbyDriver

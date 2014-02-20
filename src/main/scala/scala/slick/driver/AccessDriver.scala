@@ -94,7 +94,6 @@ trait AccessDriver extends JdbcDriver { driver =>
     QueryCompiler.relational.addBefore(new ExistsToCount, QueryCompiler.relationalPhases.head)
 
   val retryCount = 10
-  override val columnTypes = new JdbcTypes(retryCount)
 
   override def createQueryBuilder(n: Node, state: CompilerState): QueryBuilder = new QueryBuilder(n, state)
   override def createTableDDLBuilder(table: Table[_]): TableDDLBuilder = new TableDDLBuilder(table)
@@ -201,87 +200,85 @@ trait AccessDriver extends JdbcDriver { driver =>
     }
   }
 
-  class JdbcTypes(retryCount: Int) extends super.JdbcTypes {
-    /* Retry all parameter and result operations because ODBC can randomly throw
-     * S1090 (Invalid string or buffer length) exceptions. Retrying the call can
-     * sometimes work around the bug. */
-    trait Retry[T] extends JdbcType[T] {
-      abstract override def nextValue(r: PositionedResult) = {
-        def f(c: Int): T =
-          try super.nextValue(r) catch {
-            case e: SQLException if c > 0 && e.getSQLState == "S1090" => f(c-1)
-          }
-        f(retryCount)
-      }
-      abstract override def setValue(v: T, p: PositionedParameters) = {
-        def f(c: Int): Unit =
-          try super.setValue(v, p) catch {
-            case e: SQLException if c > 0 && e.getSQLState == "S1090" => f(c-1)
-          }
-        f(retryCount)
-      }
-      abstract override def setOption(v: Option[T], p: PositionedParameters) = {
-        def f(c: Int): Unit =
-          try super.setOption(v, p) catch {
-            case e: SQLException if c > 0 && e.getSQLState == "S1090" => f(c-1)
-          }
-        f(retryCount)
-      }
-      abstract override def updateValue(v: T, r: PositionedResult) = {
-        def f(c: Int): Unit =
-          try super.updateValue(v, r) catch {
-            case e: SQLException if c > 0 && e.getSQLState == "S1090" => f(c-1)
-          }
-        f(retryCount)
-      }
+  /* Retry all parameter and result operations because ODBC can randomly throw
+   * S1090 (Invalid string or buffer length) exceptions. Retrying the call can
+   * sometimes work around the bug. */
+  trait Retry[T] extends JdbcType[T] {
+    abstract override def nextValue(r: PositionedResult) = {
+      def f(c: Int): T =
+        try super.nextValue(r) catch {
+          case e: SQLException if c > 0 && e.getSQLState == "S1090" => f(c-1)
+        }
+      f(retryCount)
     }
-
-    // This is a nightmare... but it seems to work
-    class UUIDJdbcType extends super.UUIDJdbcType {
-      override def sqlType = java.sql.Types.BLOB
-      override def setOption(v: Option[UUID], p: PositionedParameters) =
-        if(v == None) p.setString(null) else p.setBytes(toBytes(v.get))
-      override def nextValueOrElse(d: =>UUID, r: PositionedResult) = { val v = nextValue(r); if(v.eq(null) || r.rs.wasNull) d else v }
-      override def nextOption(r: PositionedResult): Option[UUID] = { val v = nextValue(r); if(v.eq(null) || r.rs.wasNull) None else Some(v) }
+    abstract override def setValue(v: T, p: PositionedParameters) = {
+      def f(c: Int): Unit =
+        try super.setValue(v, p) catch {
+          case e: SQLException if c > 0 && e.getSQLState == "S1090" => f(c-1)
+        }
+      f(retryCount)
     }
-
-    /* Access does not have a TINYINT (8-bit signed type), so we use 16-bit signed. */
-    class ByteJdbcType extends super.ByteJdbcType {
-      override def setValue(v: Byte, p: PositionedParameters) = p.setShort(v)
-      override def setOption(v: Option[Byte], p: PositionedParameters) = p.setIntOption(v.map(_.toInt))
-      override def nextValue(r: PositionedResult) = r.nextInt.toByte
-      override def updateValue(v: Byte, r: PositionedResult) = r.updateInt(v)
+    abstract override def setOption(v: Option[T], p: PositionedParameters) = {
+      def f(c: Int): Unit =
+        try super.setOption(v, p) catch {
+          case e: SQLException if c > 0 && e.getSQLState == "S1090" => f(c-1)
+        }
+      f(retryCount)
     }
-
-    /* Reading null from a nullable LONGBINARY column does not cause wasNull
-       to be set, so we check for nulls directly. */
-    class ByteArrayJdbcType extends super.ByteArrayJdbcType {
-      override def nextOption(r: PositionedResult): Option[Array[Byte]] = Option(nextValue(r))
+    abstract override def updateValue(v: T, r: PositionedResult) = {
+      def f(c: Int): Unit =
+        try super.updateValue(v, r) catch {
+          case e: SQLException if c > 0 && e.getSQLState == "S1090" => f(c-1)
+        }
+      f(retryCount)
     }
-
-    class LongJdbcType extends super.LongJdbcType {
-      override def setValue(v: Long, p: PositionedParameters) = p.setString(v.toString)
-      override def setOption(v: Option[Long], p: PositionedParameters) = p.setStringOption(v.map(_.toString))
-    }
-
-    override val booleanJdbcType = new BooleanJdbcType with Retry[Boolean]
-    override val blobJdbcType = new BlobJdbcType with Retry[Blob]
-    override val bigDecimalJdbcType = new BigDecimalJdbcType with Retry[BigDecimal]
-    override val byteJdbcType = new ByteJdbcType with Retry[Byte]
-    override val byteArrayJdbcType = new ByteArrayJdbcType with Retry[Array[Byte]]
-    override val clobJdbcType = new ClobJdbcType with Retry[Clob]
-    override val dateJdbcType = new DateJdbcType with Retry[Date]
-    override val doubleJdbcType = new DoubleJdbcType with Retry[Double]
-    override val floatJdbcType = new FloatJdbcType with Retry[Float]
-    override val intJdbcType = new IntJdbcType with Retry[Int]
-    override val longJdbcType = new LongJdbcType with Retry[Long]
-    override val shortJdbcType = new ShortJdbcType with Retry[Short]
-    override val stringJdbcType = new StringJdbcType with Retry[String]
-    override val timeJdbcType = new TimeJdbcType with Retry[Time]
-    override val timestampJdbcType = new TimestampJdbcType with Retry[Timestamp]
-    override val nullJdbcType = new NullJdbcType with Retry[Null]
-    override val uuidJdbcType = new UUIDJdbcType with Retry[UUID]
   }
+
+  // This is a nightmare... but it seems to work
+  class UUIDJdbcType extends super.UUIDJdbcType {
+    override def sqlType = java.sql.Types.BLOB
+    override def setOption(v: Option[UUID], p: PositionedParameters) =
+      if(v == None) p.setString(null) else p.setBytes(toBytes(v.get))
+    override def nextValueOrElse(d: =>UUID, r: PositionedResult) = { val v = nextValue(r); if(v.eq(null) || r.rs.wasNull) d else v }
+    override def nextOption(r: PositionedResult): Option[UUID] = { val v = nextValue(r); if(v.eq(null) || r.rs.wasNull) None else Some(v) }
+  }
+
+  /* Access does not have a TINYINT (8-bit signed type), so we use 16-bit signed. */
+  class ByteJdbcType extends super.ByteJdbcType {
+    override def setValue(v: Byte, p: PositionedParameters) = p.setShort(v)
+    override def setOption(v: Option[Byte], p: PositionedParameters) = p.setIntOption(v.map(_.toInt))
+    override def nextValue(r: PositionedResult) = r.nextInt.toByte
+    override def updateValue(v: Byte, r: PositionedResult) = r.updateInt(v)
+  }
+
+  /* Reading null from a nullable LONGBINARY column does not cause wasNull
+     to be set, so we check for nulls directly. */
+  class ByteArrayJdbcType extends super.ByteArrayJdbcType {
+    override def nextOption(r: PositionedResult): Option[Array[Byte]] = Option(nextValue(r))
+  }
+
+  class LongJdbcType extends super.LongJdbcType {
+    override def setValue(v: Long, p: PositionedParameters) = p.setString(v.toString)
+    override def setOption(v: Option[Long], p: PositionedParameters) = p.setStringOption(v.map(_.toString))
+  }
+
+  registerType(new BooleanJdbcType with Retry[Boolean])
+  registerType(new BlobJdbcType with Retry[Blob])
+  registerType(new BigDecimalJdbcType with Retry[BigDecimal])
+  registerType(new ByteJdbcType with Retry[Byte])
+  registerType(new ByteArrayJdbcType with Retry[Array[Byte]])
+  registerType(new ClobJdbcType with Retry[Clob])
+  registerType(new DateJdbcType with Retry[Date])
+  registerType(new DoubleJdbcType with Retry[Double])
+  registerType(new FloatJdbcType with Retry[Float])
+  registerType(new IntJdbcType with Retry[Int])
+  registerType(new LongJdbcType with Retry[Long])
+  registerType(new ShortJdbcType with Retry[Short])
+  registerType(new StringJdbcType with Retry[String])
+  registerType(new TimeJdbcType with Retry[Time])
+  registerType(new TimestampJdbcType with Retry[Timestamp])
+  registerType(new NullJdbcType with Retry[Null])
+  registerType(new UUIDJdbcType with Retry[UUID])
 
   /** Query compiler phase that rewrites Exists calls in projections to
     * equivalent CountAll > 0 calls which can then be fused into aggregation

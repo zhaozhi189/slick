@@ -3,7 +3,7 @@ package scala.slick.profile
 import scala.language.{implicitConversions, higherKinds}
 import scala.slick.ast._
 import scala.slick.lifted._
-import scala.slick.util.{TupleMethods, TupleSupport}
+import scala.slick.util.TupleSupport
 import FunctionSymbolExtensionMethods._
 import scala.slick.SlickException
 import scala.reflect.ClassTag
@@ -44,7 +44,7 @@ trait RelationalProfile extends BasicProfile with RelationalTableComponent
       * key matches the parameter value. */
     def findBy[P](f: (T => Column[P]))(implicit tm: TypedType[P]): CompiledFunction[Column[P] => Query[T, U], Column[P], P, Query[T, U], Seq[U]] = {
       import driver.Implicit._
-      Compiled { (p: Column[P]) => (q: Query[T, U]).filter(table => Library.==.column[Boolean](f(table).toNode, p.toNode)) }
+      Compiled { (p: Column[P]) => (q: Query[T, U]).filter(table => Library.==.column[Boolean](f(table).toNode, p.toNode)(ScalaBaseType.booleanType)) }
     }
   }
 }
@@ -170,8 +170,8 @@ trait RelationalSequenceComponent { driver: RelationalDriver =>
 }
 
 trait RelationalTypesComponent { driver: BasicDriver =>
-  type ColumnType[T] <: TypedType[T]
-  type BaseColumnType[T] <: ColumnType[T] with BaseTypedType[T]
+  type ColumnType[T] = TypedType[T]
+  type BaseColumnType[T] = BaseTypedType[T]
 
   val MappedColumnType: MappedColumnTypeFactory
 
@@ -182,16 +182,16 @@ trait RelationalTypesComponent { driver: BasicDriver =>
   trait ImplicitColumnTypes {
     implicit def isomorphicType[A, B](implicit iso: Isomorphism[A, B], ct: ClassTag[A], jt: BaseColumnType[B]): BaseColumnType[A] =
       MappedColumnType.base[A, B](iso.map, iso.comap)
-    implicit def booleanColumnType: BaseColumnType[Boolean]
-    implicit def bigDecimalColumnType: BaseColumnType[BigDecimal] with NumericTypedType
-    implicit def byteColumnType: BaseColumnType[Byte] with NumericTypedType
-    implicit def charColumnType: BaseColumnType[Char]
-    implicit def doubleColumnType: BaseColumnType[Double] with NumericTypedType
-    implicit def floatColumnType: BaseColumnType[Float] with NumericTypedType
-    implicit def intColumnType: BaseColumnType[Int] with NumericTypedType
-    implicit def longColumnType: BaseColumnType[Long] with NumericTypedType
-    implicit def shortColumnType: BaseColumnType[Short] with NumericTypedType
-    implicit def stringColumnType: BaseColumnType[String]
+    implicit def booleanColumnType = ScalaBaseType.booleanType
+    implicit def bigDecimalColumnType = ScalaBaseType.bigDecimalType
+    implicit def byteColumnType = ScalaBaseType.byteType
+    implicit def charColumnType = ScalaBaseType.charType
+    implicit def doubleColumnType = ScalaBaseType.doubleType
+    implicit def floatColumnType = ScalaBaseType.floatType
+    implicit def intColumnType = ScalaBaseType.intType
+    implicit def longColumnType = ScalaBaseType.longType
+    implicit def shortColumnType = ScalaBaseType.shortType
+    implicit def stringColumnType = ScalaBaseType.stringType
   }
 }
 

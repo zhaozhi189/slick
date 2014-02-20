@@ -1,5 +1,6 @@
 package scala.slick.driver
 
+import java.util.UUID
 import scala.slick.SlickException
 import scala.slick.lifted._
 import scala.slick.ast._
@@ -37,8 +38,6 @@ trait MySQLDriver extends JdbcDriver { driver =>
     - JdbcProfile.capabilities.returnInsertOther
     - SqlProfile.capabilities.sequenceLimited
   )
-
-  override val columnTypes = new JdbcTypes
 
   override def createQueryBuilder(n: Node, state: CompilerState): QueryBuilder = new QueryBuilder(n, state)
   override def createTableDDLBuilder(table: Table[_]): TableDDLBuilder = new TableDDLBuilder(table)
@@ -84,7 +83,7 @@ trait MySQLDriver extends JdbcDriver { driver =>
 
     override def expr(n: Node, skipParens: Boolean = false): Unit = n match {
       case Library.Cast(ch) :@ JdbcType(ti, _) =>
-        val tn = if(ti == columnTypes.stringJdbcType) "VARCHAR" else ti.sqlTypeName
+        val tn = if(ti == jdbcTypes(ScalaBaseType.stringType)) "VARCHAR" else ti.sqlTypeName
         b"{fn convert(!${ch},$tn)}"
       case Library.NextValue(SequenceNode(name)) => b"`${name + "_nextval"}()"
       case Library.CurrentValue(SequenceNode(name)) => b"`${name + "_currval"}()"
@@ -165,38 +164,35 @@ trait MySQLDriver extends JdbcDriver { driver =>
     }
   }
 
-  class JdbcTypes extends super.JdbcTypes {
-    override val stringJdbcType = new StringJdbcType {
-      override def valueToSQLLiteral(value: String) = if(value eq null) "NULL" else {
-        val sb = new StringBuilder
-        sb append '\''
-        for(c <- value) c match {
-          case '\'' => sb append "\\'"
-          case '"' => sb append "\\\""
-          case 0 => sb append "\\0"
-          case 26 => sb append "\\Z"
-          case '\b' => sb append "\\b"
-          case '\n' => sb append "\\n"
-          case '\r' => sb append "\\r"
-          case '\t' => sb append "\\t"
-          case '\\' => sb append "\\\\"
-          case _ => sb append c
-        }
-        sb append '\''
-        sb.toString
+  registerType(new StringJdbcType {
+    override def valueToSQLLiteral(value: String) = if(value eq null) "NULL" else {
+      val sb = new StringBuilder
+      sb append '\''
+      for(c <- value) c match {
+        case '\'' => sb append "\\'"
+        case '"' => sb append "\\\""
+        case 0 => sb append "\\0"
+        case 26 => sb append "\\Z"
+        case '\b' => sb append "\\b"
+        case '\n' => sb append "\\n"
+        case '\r' => sb append "\\r"
+        case '\t' => sb append "\\t"
+        case '\\' => sb append "\\\\"
+        case _ => sb append c
       }
+      sb append '\''
+      sb.toString
     }
+  })
 
-    import java.util.UUID
+  class UUIDJdbcType extends super.UUIDJdbcType {
+    override def sqlType = java.sql.Types.BINARY
+    override def sqlTypeName = "BINARY(16)"
 
-    override val uuidJdbcType = new UUIDJdbcType {
-      override def sqlType = java.sql.Types.BINARY
-      override def sqlTypeName = "BINARY(16)"
-
-      override def valueToSQLLiteral(value: UUID): String =
-        "x'"+value.toString.replace("-", "")+"'"
-    }
+    override def valueToSQLLiteral(value: UUID): String =
+      "x'"+value.toString.replace("-", "")+"'"
   }
+  registerType(new UUIDJdbcType)
 }
 
 object MySQLDriver extends MySQLDriver

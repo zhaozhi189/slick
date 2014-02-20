@@ -11,8 +11,6 @@ import scala.reflect.ClassTag
 /** The querying (read-only) part that can be shared between MemoryDriver and DistributedDriver. */
 trait MemoryQueryingProfile extends RelationalProfile { driver: MemoryQueryingDriver =>
 
-  type ColumnType[T] = ScalaType[T]
-  type BaseColumnType[T] = ScalaType[T] with BaseTypedType[T]
   type UnshapedQueryExecutor[R] = UnshapedQueryExecutorDef[R]
 
   val MappedColumnType = new MappedColumnTypeFactory
@@ -25,27 +23,13 @@ trait MemoryQueryingProfile extends RelationalProfile { driver: MemoryQueryingDr
   }
 
   class MappedColumnType[T, U](val baseType: ColumnType[U], toBase: T => U, toMapped: U => T) extends ScalaType[T] with BaseTypedType[T] {
-    def nullable: Boolean = baseType.nullable
-    def ordered: Boolean = baseType.ordered
+    protected[this] lazy val baseScalaType = baseType.scalaType
+    def nullable: Boolean = baseScalaType.nullable
+    def ordered: Boolean = baseScalaType.ordered
     def scalaOrderingFor(ord: Ordering): scala.math.Ordering[T] = new scala.math.Ordering[T] {
-      val uOrdering = baseType.scalaOrderingFor(ord)
+      val uOrdering = baseScalaType.scalaOrderingFor(ord)
       def compare(x: T, y: T): Int = uOrdering.compare(toBase(x), toBase(y))
     }
-  }
-
-  trait Implicits extends super.Implicits with ImplicitColumnTypes
-
-  trait ImplicitColumnTypes {
-    implicit def booleanColumnType = ScalaBaseType.booleanType
-    implicit def bigDecimalColumnType = ScalaBaseType.bigDecimalType
-    implicit def byteColumnType = ScalaBaseType.byteType
-    implicit def charColumnType = ScalaBaseType.charType
-    implicit def doubleColumnType = ScalaBaseType.doubleType
-    implicit def floatColumnType = ScalaBaseType.floatType
-    implicit def intColumnType = ScalaBaseType.intType
-    implicit def longColumnType = ScalaBaseType.longType
-    implicit def shortColumnType = ScalaBaseType.shortType
-    implicit def stringColumnType = ScalaBaseType.stringType
   }
 }
 

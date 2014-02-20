@@ -31,7 +31,6 @@ trait PostgresDriver extends JdbcDriver { driver =>
 
   override def getTables: Invoker[MTable] = MTable.getTables(None, None, None, Some(Seq("TABLE")))
 
-  override val columnTypes = new JdbcTypes
   override def createQueryBuilder(n: Node, state: CompilerState): QueryBuilder = new QueryBuilder(n, state)
   override def createTableDDLBuilder(table: Table[_]): TableDDLBuilder = new TableDDLBuilder(table)
   override def createColumnDDLBuilder(column: FieldSymbol, table: Table[_]): ColumnDDLBuilder = new ColumnDDLBuilder(column)
@@ -98,29 +97,26 @@ trait PostgresDriver extends JdbcDriver { driver =>
       ) else None
   }
 
-  class JdbcTypes extends super.JdbcTypes {
-    override val byteArrayJdbcType = new ByteArrayJdbcType
-    override val uuidJdbcType = new UUIDJdbcType
-
-    class ByteArrayJdbcType extends super.ByteArrayJdbcType {
-      override val sqlType = java.sql.Types.BINARY
-      override val sqlTypeName = "BYTEA"
-      override def setOption(v: Option[Array[Byte]], p: PositionedParameters) = v match {
-        case Some(a) => p.setBytes(a)
-        case None => p.setNull(sqlType)
-      }
-    }
-
-    class UUIDJdbcType extends super.UUIDJdbcType {
-      override def sqlTypeName = "UUID"
-      override def setValue(v: UUID, p: PositionedParameters) = p.setObject(v, sqlType)
-      override def setOption(v: Option[UUID], p: PositionedParameters) = p.setObjectOption(v, sqlType)
-      override def nextValue(r: PositionedResult) = r.nextObject().asInstanceOf[UUID]
-      override def updateValue(v: UUID, r: PositionedResult) = r.updateObject(v)
-      override def valueToSQLLiteral(value: UUID) = "'" + value + "'"
-      override def hasLiteralForm = true
+  class ByteArrayJdbcType extends super.ByteArrayJdbcType {
+    override val sqlType = java.sql.Types.BINARY
+    override val sqlTypeName = "BYTEA"
+    override def setOption(v: Option[Array[Byte]], p: PositionedParameters) = v match {
+      case Some(a) => p.setBytes(a)
+      case None => p.setNull(sqlType)
     }
   }
+  registerType(new ByteArrayJdbcType)
+
+  class UUIDJdbcType extends super.UUIDJdbcType {
+    override def sqlTypeName = "UUID"
+    override def setValue(v: UUID, p: PositionedParameters) = p.setObject(v, sqlType)
+    override def setOption(v: Option[UUID], p: PositionedParameters) = p.setObjectOption(v, sqlType)
+    override def nextValue(r: PositionedResult) = r.nextObject().asInstanceOf[UUID]
+    override def updateValue(v: UUID, r: PositionedResult) = r.updateObject(v)
+    override def valueToSQLLiteral(value: UUID) = "'" + value + "'"
+    override def hasLiteralForm = true
+  }
+  registerType(new UUIDJdbcType)
 }
 
 object PostgresDriver extends PostgresDriver

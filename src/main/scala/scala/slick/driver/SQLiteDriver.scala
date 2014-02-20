@@ -69,7 +69,6 @@ trait SQLiteDriver extends JdbcDriver { driver =>
     this
   )
 
-  override val columnTypes = new JdbcTypes
   override def createQueryBuilder(n: Node, state: CompilerState): QueryBuilder = new QueryBuilder(n, state)
   override def createTableDDLBuilder(table: Table[_]): TableDDLBuilder = new TableDDLBuilder(table)
   override def createColumnDDLBuilder(column: FieldSymbol, table: Table[_]): ColumnDDLBuilder = new ColumnDDLBuilder(column)
@@ -144,35 +143,36 @@ trait SQLiteDriver extends JdbcDriver { driver =>
     }
   }
 
-  class JdbcTypes extends super.JdbcTypes {
-    override val booleanJdbcType = new BooleanJdbcType
-    override val dateJdbcType = new DateJdbcType
-    override val timeJdbcType = new TimeJdbcType
-    override val timestampJdbcType = new TimestampJdbcType
-    override val uuidJdbcType = new UUIDJdbcType
-
-    /* SQLite does not have a proper BOOLEAN type. The suggested workaround is
-     * INTEGER with constants 1 and 0 for TRUE and FALSE. */
-    class BooleanJdbcType extends super.BooleanJdbcType {
-      override def sqlTypeName = "INTEGER"
-      override def valueToSQLLiteral(value: Boolean) = if(value) "1" else "0"
-    }
-    /* The SQLite JDBC driver does not support the JDBC escape syntax for
-     * date/time/timestamp literals. SQLite expects these values as milliseconds
-     * since epoch. */
-    class DateJdbcType extends super.DateJdbcType {
-      override def valueToSQLLiteral(value: Date) = value.getTime.toString
-    }
-    class TimeJdbcType extends super.TimeJdbcType {
-      override def valueToSQLLiteral(value: Time) = value.getTime.toString
-    }
-    class TimestampJdbcType extends super.TimestampJdbcType {
-      override def valueToSQLLiteral(value: Timestamp) = value.getTime.toString
-    }
-    class UUIDJdbcType extends super.UUIDJdbcType {
-      override def sqlType = java.sql.Types.BLOB
-    }
+  /* SQLite does not have a proper BOOLEAN type. The suggested workaround is
+   * INTEGER with constants 1 and 0 for TRUE and FALSE. */
+  class BooleanJdbcType extends super.BooleanJdbcType {
+    override def sqlTypeName = "INTEGER"
+    override def valueToSQLLiteral(value: Boolean) = if(value) "1" else "0"
   }
+  registerType(new BooleanJdbcType)
+
+  /* The SQLite JDBC driver does not support the JDBC escape syntax for
+   * date/time/timestamp literals. SQLite expects these values as milliseconds
+   * since epoch. */
+  class DateJdbcType extends super.DateJdbcType {
+    override def valueToSQLLiteral(value: Date) = value.getTime.toString
+  }
+  registerType(new DateJdbcType)
+
+  class TimeJdbcType extends super.TimeJdbcType {
+    override def valueToSQLLiteral(value: Time) = value.getTime.toString
+  }
+  registerType(new TimeJdbcType)
+
+  class TimestampJdbcType extends super.TimestampJdbcType {
+    override def valueToSQLLiteral(value: Timestamp) = value.getTime.toString
+  }
+  registerType(new TimestampJdbcType)
+
+  class UUIDJdbcType extends super.UUIDJdbcType {
+    override def sqlType = java.sql.Types.BLOB
+  }
+  registerType(new UUIDJdbcType)
 }
 
 object SQLiteDriver extends SQLiteDriver
