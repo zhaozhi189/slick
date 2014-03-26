@@ -125,6 +125,8 @@ trait RelationalTableComponent { driver: RelationalDriver =>
     val O: driver.columnOptions.type = columnOptions
 
     def column[C](n: String, options: ColumnOption[C]*)(implicit tm: TypedType[C]): Column[C] = new Column[C] {
+      if(tm == null)
+        throw new NullPointerException("null found for implicit parameter tm. This may be an initialization order problem. Try changing your MappedColumnType val to a lazy val or def.")
       override def toNode =
         Path(FieldSymbol(n)(options, tm) :: (tableTag match {
           case r: RefTag => r.path

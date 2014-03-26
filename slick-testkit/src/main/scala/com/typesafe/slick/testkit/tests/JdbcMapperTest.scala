@@ -9,6 +9,10 @@ class JdbcMapperTest extends TestkitTest[JdbcTestDB] {
 
   override val reuseInstance = true
 
+  def testTypeMapperInitOrderException {
+    // <- need test case here
+  }
+
   def testMappedEntity {
     import TupleMethods._
 
