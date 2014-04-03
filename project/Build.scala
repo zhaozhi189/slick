@@ -16,7 +16,7 @@ object SlickBuild extends Build {
 
   val publishedScalaSettings = Seq(
     scalaVersion := "2.10.4",
-    crossScalaVersions := Seq(scalaVersion.value, "2.11.0-RC3"),
+    crossScalaVersions := Seq(scalaVersion.value, "2.11.0-RC4"),
     //scalaBinaryVersion <<= scalaVersion,
     libraryDependencies <+= scalaVersion("org.scala-lang" % "scala-compiler" % _ % "optional")
   )
