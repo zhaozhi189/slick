@@ -181,6 +181,10 @@ class AggregateTest extends TestkitTest[RelationalTestDB] {
     val res11 = q11.run
     assertEquals(expected11, res11.toSet)
     assertEquals(2, res11.size)
+
+    println("=========================================================== q14")
+    val q14 = ts.groupMap(_.a)((a, q) => (a, q.map(_.b).min.get, q.length))
+    println(q14.run)
   }
 
   def testIntLength {

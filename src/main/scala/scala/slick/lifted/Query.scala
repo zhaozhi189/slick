@@ -104,6 +104,11 @@ sealed abstract class Query[+E, U, C[_]] extends Rep[C[U]] { self =>
   /** Sort this query according to a the ordering of its elements. */
   def sorted(implicit ev: (E => Ordered)): Query[E, U, C] = sortBy(identity)
 
+  /** Sort a query of a tuple `(a, b)` by `a` and return a query of `b`.
+    * `q.sortMap` is equivalent to `q.sortBy(_._1).map(_._2)` */
+  def sortMap[E1, E2, U1, U2, P1, P2](implicit ev: E <:< (E1, E2), sh1: Shape[_ <: FlatShapeLevel, E1, U1, P1], sh2: Shape[_ <: FlatShapeLevel, E2, U2, P2], ord: E1 => Ordered): Query[P2, U2, C] =
+    sortBy(_._1).map(_._2)
+
   /** Partition this query into a query of pairs of a key and a nested query
     * containing the elements for the key, according to some discriminator
     * function. */
@@ -114,6 +119,11 @@ sealed abstract class Query[+E, U, C[_]] extends Rep[C[U]] { self =>
     val group = GroupBy(sym, toNode, key.toNode)
     new WrappingQuery[(G, Query[P, U, Seq]), (T, Query[P, U, Seq]), C](group, key.zip(value))
   }
+
+  /** Partition this query and perform an aggregating mapping on the individual groups.
+    * `q.groupMap(f)(g)` is equivalent to `q.groupBy(f).map(g.tupled)` */
+  def groupMap[K, T, G, P, R, RU, RP](f: E => K)(g: Function2[G, Query[P, U, Seq], R])(implicit kshape: Shape[_ <: FlatShapeLevel, K, T, G], vshape: Shape[_ <: FlatShapeLevel, E, _, P], rshape: Shape[_ <: FlatShapeLevel, R, RU, RP]): Query[RP, RU, C] =
+    groupBy(f).map[R, RP, RU](g.tupled)
 
   def encodeRef(path: List[Symbol]): Query[E, U, C] = new Query[E, U, C] {
     val shaped = self.shaped.encodeRef(path)
