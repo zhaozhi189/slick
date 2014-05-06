@@ -88,8 +88,8 @@ object TestDBs {
   }
 
   def Postgres = new ExternalJdbcTestDB("postgres") {
-    type Driver = PostgresDriver.type
-    val driver = PostgresDriver
+    type Driver = CustomPostgresDriver.type
+    val driver = CustomPostgresDriver
     override def getLocalTables(implicit session: profile.Backend#Session) = {
       val tables = ResultSetInvoker[(String,String,String, String)](_.conn.getMetaData().getTables("", "public", null, null))
       tables.list.filter(_._4.toUpperCase == "TABLE").map(_._3).sorted
