@@ -12,7 +12,7 @@ import scala.slick.jdbc.JdbcType
  * --------------
  * empsalary.groupBy(r => 1).flatMap{ case (_, group) =>
  *    group.map( e => (e.depname, e.empno, e.salary,
- *                group.sortBy(_.salary.desc).map(_.salary).avg,
+ *                group.sortBy(_.salary.desc).groupBy(r => 1).avg(_.salary),
  *                group.sortBy(_.salary.desc).groupBy(_.depname).rank()
  *             ))
  * }
@@ -59,7 +59,6 @@ object AggWinTestGist {
     new AggregateFunctionExtensionMethodsBase(q) with AggregateFunctions[E]
 
   //////////////////////////////////////////////////////////
-  @Test
   def main(args: Array[String]): Unit = {
     db withSession { implicit session: Session =>
       Tabs.ddl.drop;
