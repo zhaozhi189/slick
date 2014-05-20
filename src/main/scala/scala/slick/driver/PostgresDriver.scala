@@ -10,6 +10,7 @@ import scala.slick.util.MacroSupport.macroSupportInterpolation
 import scala.slick.compiler.CompilerState
 import scala.slick.jdbc.meta.MTable
 import scala.slick.jdbc.{Invoker, JdbcType}
+import scala.slick.lifted.AggWinFuncSupport.{WindowExpr, AggFuncInputs}
 
 /** Slick driver for PostgreSQL.
   *
@@ -74,6 +75,20 @@ trait PostgresDriver extends JdbcDriver { driver =>
     override def expr(n: Node, skipParens: Boolean = false) = n match {
       case Library.NextValue(SequenceNode(name)) => b"nextval('$name')"
       case Library.CurrentValue(SequenceNode(name)) => b"currval('$name')"
+      case c: WindowExpr =>
+        expr(c.aggExpr)
+        b" over("
+        if(c.partitionBy.nonEmpty) { b" partition by "; b.sep(c.partitionBy, ",")(expr(_, true)) }
+        if(c.orderBy.nonEmpty) buildOrderByClause(c.orderBy)
+        c.frameDef.map {
+          case (mode, start, Some(end)) => b" $mode between $start and $end"
+          case (mode, start, None)      => b" $mode $start"
+        }
+        b") "
+      case c: AggFuncInputs =>
+        if (c.modifier.isDefined) b"${c.modifier.get} "
+        b.sep(c.aggParams, ",")(expr(_, true))
+        if (c.orderBy.nonEmpty) buildOrderByClause(c.orderBy)
       case _ => super.expr(n, skipParens)
     }
   }
