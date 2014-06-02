@@ -1,5 +1,6 @@
 package com.typesafe.slick.testkit.tests
 
+import scala.language.higherKinds
 import scala.collection.mutable.ArrayBuffer
 import org.junit.Assert._
 import scala.slick.util.CloseableIterator
@@ -100,5 +101,11 @@ class InvokerTest extends TestkitTest[JdbcTestDB] {
     db.withSession(ts.ddl.drop(_))
     val it2 = f()
     it2.use { assertEquals((1 to 1000).toList, it2.toStream.toList) }
+  }
+
+  def all[T, U, C[_]](q: Query[T, U, C])(implicit sh: Shape[_ <: FlatShapeLevel, T, U, _]) = {
+    // Ensure the implicit conversions can be applied
+    q.list
+    q.run
   }
 }

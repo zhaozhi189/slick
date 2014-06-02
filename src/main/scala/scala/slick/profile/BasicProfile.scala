@@ -48,11 +48,9 @@ trait BasicProfile extends BasicInvokerComponent with BasicInsertInvokerComponen
     implicit val slickDriver: driver.type = driver
     implicit def ddlToDDLInvoker(d: SchemaDescription): DDLInvoker
 
-    implicit def repToQueryExecutor[U](rep: Rep[U]): QueryExecutor[U] = createQueryExecutor[U](queryCompiler.run(rep.toNode).tree, ())
+    implicit def executableToQueryExecutor[T, U](v: T)(implicit exe: Executable[T, U]): QueryExecutor[U] = createQueryExecutor[U](queryCompiler.run(exe.toNode(v)).tree, ())
     implicit def runnableCompiledToQueryExecutor[RU](c: RunnableCompiled[_, RU]): QueryExecutor[RU] = createQueryExecutor[RU](c.compiledQuery, c.param)
     implicit def streamableCompiledToInsertInvoker[EU](c: StreamableCompiled[_, _, EU]): InsertInvoker[EU] = createInsertInvoker[EU](c.compiledInsert.asInstanceOf[CompiledInsert])
-    // This only works on Scala 2.11 due to SI-3346:
-    implicit def recordToQueryExecutor[M, R](q: M)(implicit shape: Shape[_ <: FlatShapeLevel, M, R, _]): QueryExecutor[R] = createQueryExecutor[R](queryCompiler.run(shape.toNode(q)).tree, ())
     implicit def queryToInsertInvoker[U, C[_]](q: Query[_, U, C]) = createInsertInvoker[U](compileInsert(q.toNode))
 
     // Work-around for SI-3346

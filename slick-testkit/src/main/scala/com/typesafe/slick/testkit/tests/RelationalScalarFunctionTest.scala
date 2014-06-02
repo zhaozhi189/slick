@@ -2,13 +2,14 @@ package com.typesafe.slick.testkit.tests
 
 import org.junit.Assert._
 import com.typesafe.slick.testkit.util.{RelationalTestDB, TestkitTest}
+import scala.slick.lifted.Executable
 
 class RelationalScalarFunctionTest extends TestkitTest[RelationalTestDB] {
   import tdb.profile.simple._
 
   def test {
-    def check[T](q: Rep[T], exp: T) = assertEquals(exp, q.run)
-    def checkLit[T : ColumnType](v: T) = check(LiteralColumn(v), v)
+    def check[T <: Rep[_], U](rep: T, exp: U)(implicit exe: Executable[T, U]) = assertEquals(exp, rep.run)
+    def checkLit[T : ColumnType](v: T) = check(LiteralColumn(v): Column[T], v)
 
     // Literals
     checkLit(false)

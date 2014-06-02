@@ -55,6 +55,7 @@ trait RelationalProfile extends BasicProfile with RelationalTableComponent
       * key matches the parameter value. */
     def findBy[P](f: (T => Column[P]))(implicit tm: TypedType[P]): CompiledFunction[Column[P] => Query[T, U, Seq], Column[P], P, Query[T, U, Seq], Seq[U]] = {
       import driver.Implicit._
+      implicit val executable = Executable.queryIsExecutable[T, U, Seq](null) // we know that it has a flat shape
       Compiled { (p: Column[P]) => (q: Query[T, U, Seq]).filter(table => Library.==.column[Boolean](f(table).toNode, p.toNode)) }
     }
   }
