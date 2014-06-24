@@ -172,4 +172,30 @@ class JoinTest extends TestkitTest[RelationalTestDB] {
     val q3 = ts innerJoin ts
     q3.run
   }
+
+  def testJoinFusion {
+    class A(tag: Tag) extends Table[Int](tag, "a_joinfusion") {
+      def id = column[Int]("id")
+      def * = id
+    }
+    class B(tag: Tag) extends Table[Int](tag, "b_joinfusion") {
+      def id = column[Int]("id")
+      def a = foreignKey("fk_a_joinfusion", id, as)(_.id)
+      def * = id
+    }
+    class C(tag: Tag) extends Table[Int](tag, "c_joinfusion") {
+      def id = column[Int]("id")
+      def * = id
+    }
+    lazy val as = TableQuery[A]
+    lazy val bs = TableQuery[B]
+    lazy val cs = TableQuery[C]
+    (as.ddl ++ bs.ddl ++ cs.ddl).create
+
+    val q1 = for {
+      b <- bs
+      (a,c) <- b.a leftJoin cs on (_.id === _.id)
+    } yield (b.id)
+    println(q1.run)
+  }
 }
