@@ -15,7 +15,7 @@ object SlickBuild extends Build {
 
   val slickVersion = "3.0.0-SNAPSHOT"
   val binaryCompatSlickVersion = "3.0.0" // Slick base version for binary compatibility checks
-  val scalaVersions = Seq("2.10.4", "2.11.4")
+  val scalaVersions = Seq("2.11.6-6818009-SNAPSHOT")
 
   /** Dependencies for reuse in different parts of the build */
   object Dependencies {
@@ -96,6 +96,16 @@ object SlickBuild extends Build {
   }
 
   lazy val sharedSettings = Seq(
+    resolvers ++= (
+      if (scalaVersion.value.endsWith("-SNAPSHOT"))
+        List(
+          "pr-scala snapshots" at "http://private-repo.typesafe.com/typesafe/scala-pr-validation-snapshots/",
+          Resolver.sonatypeRepo("snapshots")
+        )
+      else
+        Nil
+      ),
+    scalaBinaryVersion := "2.11",
     version := slickVersion,
     organizationName := "Typesafe",
     organization := "com.typesafe.slick",
