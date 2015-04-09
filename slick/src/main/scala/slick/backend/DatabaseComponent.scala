@@ -1,5 +1,6 @@
 package slick.backend
 
+import java.util.concurrent.ExecutionException
 import java.util.concurrent.atomic.{AtomicReferenceArray, AtomicBoolean, AtomicLong}
 
 import com.typesafe.config.Config
@@ -71,9 +72,16 @@ trait DatabaseComponent { self =>
     /** Run an Action asynchronously and return the result as a Future. */
     final def run[R](a: DBIOAction[R, NoStream, Nothing]): Future[R] = runInternal(a, false)
 
-    private[slick] final def runInternal[R](a: DBIOAction[R, NoStream, Nothing], useSameThread: Boolean): Future[R] =
-      try runInContext(a, createDatabaseActionContext(useSameThread), false, true)
-      catch { case NonFatal(ex) => Future.failed(ex) }
+    private[slick] final def runInternal[R](a: DBIOAction[R, NoStream, Nothing], useSameThread: Boolean): Future[R] = {
+      val ctx = createDatabaseActionContext(useSameThread)
+      val f = try runInContext(a, ctx, false, true) catch { case NonFatal(ex) => Future.failed(ex) }
+      if(GlobalConfig.captureAsyncStackTrace)
+        f.andThen {
+          case t: Failure[R] => ctx.fixStackTrace(t.exception)
+          case _ =>
+        } (DBIO.sameThreadExecutionContext)
+      else f
+    }
 
     /** Create a `Publisher` for Reactive Streams which, when subscribed to, will run the specified
       * `DBIOAction` and return the result directly as a stream without buffering everything first.
@@ -414,6 +422,24 @@ trait DatabaseComponent { self =>
 
   /** The context object passed to database actions by the execution engine. */
   trait BasicActionContext extends ActionContext {
+    private[this] val invokerStackTrace: Array[StackTraceElement] =
+      if(GlobalConfig.captureAsyncStackTrace) (new Throwable).getStackTrace
+      else null
+
+    private[DatabaseComponent] def fixStackTrace(t: Throwable): Unit = {
+      val ex = t match {
+        case ex: ExecutionException => ex.getCause
+        case ex => ex
+      }
+      val orig = ex.getStackTrace
+      val b = new ArrayBuffer[StackTraceElement](orig.length + invokerStackTrace.length + 1)
+      b ++= orig
+      b += new StackTraceElement(classOf[DatabaseComponent].getName, "<async call boundary>", null, -1)
+      val dropMethods = Set("$init$", "<init>", "createDatabaseActionContext", "createStreamingDatabaseActionContext", "runInternal", "streamInternal")
+      b ++= invokerStackTrace.iterator.dropWhile(s => dropMethods contains s.getMethodName)
+      ex.setStackTrace(b.toArray)
+    }
+
     /** Whether to run all operations on the current thread or schedule them normally on the
       * appropriate ExecutionContext. This is used by the blocking API. */
     protected[DatabaseComponent] val useSameThread: Boolean

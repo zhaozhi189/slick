@@ -23,6 +23,10 @@ object GlobalConfig {
   /** Use multi-line, indented formatting for SQL statements */
   val sqlIndent = config.getBoolean("slick.sqlIndent")
 
+  /** Capture a stack trace for every asynchronous DBIO execution to aid in debugging.
+      This should generally be turned off in production due to the performance overhead. */
+  val captureAsyncStackTrace = config.getBoolean("slick.captureAsyncStackTrace")
+
   /** Get a `Config` object for a Slick driver */
   def driverConfig(name: String): Config = {
     val path = "slick.driver." + name
