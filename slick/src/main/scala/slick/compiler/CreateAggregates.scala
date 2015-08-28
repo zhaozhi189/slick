@@ -10,7 +10,9 @@ import slick.util.{ConstArray, Ellipsis, ??}
 class CreateAggregates extends Phase {
   val name = "createAggregates"
 
-  def apply(state: CompilerState) = state.map(_.replace({
+  def apply(state: CompilerState) = state.map(transform(_)(state.global))
+
+  def transform(tree: Node)(implicit global: SymbolScope): Node = tree.replace({
     case n @ Apply(f: AggregateFunctionSymbol, ConstArray(from)) =>
       logger.debug("Converting aggregation function application", n)
       val CollectionType(_, elType @ Type.Structural(StructType(els))) = from.nodeType
@@ -46,18 +48,18 @@ class CreateAggregates extends Phase {
             }.toMap
         }
         logger.debug("Replacement paths: " + repl)
-        val scope = Type.Scope(s1 -> from2.nodeType.asCollectionType.elementType)
-        val replNodes = repl.mapValues(ss => FwdPath(ss).infer(scope))
+        val scope = global + (s1 -> from2.nodeType.asCollectionType.elementType)
+        val replNodes = repl.mapValues(ss => FwdPath(ss).infer()(scope))
         logger.debug("Replacement path nodes: ", StructNode(ConstArray.from(replNodes)))
         val sel3 = sel2.replace({ case n @ Ref(s) => replNodes.getOrElse(s, n) }, keepType = true)
         val n2 = Bind(s1, from2, Pure(sel3, ts1)).infer()
         logger.debug("Lifted aggregates into join in:", n2)
         n2
       }
-  }, keepType = true, bottomUp = true))
+  }, keepType = true, bottomUp = true)
 
   /** Recursively inline mapping Bind calls under an Aggregate */
-  def inlineMap(a: Aggregate): Aggregate = a.from match {
+  def inlineMap(a: Aggregate)(implicit global: SymbolScope): Aggregate = a.from match {
     case Bind(s1, f1, Pure(StructNode(defs1), ts1)) =>
       logger.debug("Inlining mapping Bind under Aggregate", a)
       val defs1M = defs1.iterator.toMap
@@ -73,7 +75,7 @@ class CreateAggregates extends Phase {
 
   /** Find all scalar Aggregate calls in a sub-tree that do not refer to the given Symbol,
     * and replace them by temporary Refs. */
-  def liftAggregates(n: Node, outer: TermSymbol): (Node, Map[TermSymbol, Aggregate]) = n match {
+  def liftAggregates(n: Node, outer: TermSymbol)(implicit global: SymbolScope): (Node, Map[TermSymbol, Aggregate]) = n match {
     case a @ Aggregate(s1, f1, sel1) =>
       if(a.findNode {
           case n: PathElement => n.sym == outer

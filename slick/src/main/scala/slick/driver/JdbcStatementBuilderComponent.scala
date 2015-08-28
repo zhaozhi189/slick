@@ -321,14 +321,14 @@ trait JdbcStatementBuilderComponent { driver: JdbcDriver =>
           }
           b"\)"
         case RewriteBooleans.ToFakeBoolean(ch) =>
-          expr(IfThenElse(ConstArray(ch, LiteralNode(1).infer(), LiteralNode(0).infer())), skipParens)
+          expr(IfThenElse(ConstArray(ch, LiteralNode(1).infer, LiteralNode(0).infer)), skipParens)
         case RewriteBooleans.ToRealBoolean(ch) =>
-          expr(Library.==.typed[Boolean](ch, LiteralNode(true).infer()), skipParens)
+          expr(Library.==.typed[Boolean](ch, LiteralNode(true).infer), skipParens)
         case Library.Exists(c: Comprehension) =>
           /* If tuples are not supported, selecting multiple individial columns
            * in exists(select ...) is probably not supported, either, so we rewrite
            * such sub-queries to "select 1". */
-          b"exists\[!${(if(supportsTuples) c else c.copy(select = Pure(LiteralNode(1))).infer()): Node}\]"
+          b"exists\[!${(if(supportsTuples) c else c.copy(select = Pure(LiteralNode(1))).infer()(SymbolScope.local)): Node}\]"
         case Library.Concat(l, r) if concatOperator.isDefined =>
           b"\($l${concatOperator.get}$r\)"
         case Library.User() if !capabilities.contains(RelationalProfile.capabilities.functionUser) =>
@@ -353,9 +353,9 @@ trait JdbcStatementBuilderComponent { driver: JdbcDriver =>
         case Library.Trim(n) =>
           expr(Library.LTrim.typed[String](Library.RTrim.typed[String](n)), skipParens)
         case Library.Substring(n, start, end) =>
-          b"\({fn substring($n, ${QueryParameter.constOp[Int]("+")(_ + _)(start, LiteralNode(1).infer())}, ${QueryParameter.constOp[Int]("-")(_ - _)(end, start)})}\)"
+          b"\({fn substring($n, ${QueryParameter.constOp[Int]("+")(_ + _)(start, LiteralNode(1).infer)}, ${QueryParameter.constOp[Int]("-")(_ - _)(end, start)})}\)"
         case Library.Substring(n, start) =>
-          b"\({fn substring($n, ${QueryParameter.constOp[Int]("+")(_ + _)(start, LiteralNode(1).infer())})}\)"
+          b"\({fn substring($n, ${QueryParameter.constOp[Int]("+")(_ + _)(start, LiteralNode(1).infer)})}\)"
         case Library.IndexOf(n, str) => b"\({fn locate($str, $n)} - 1\)"
         case Library.Cast(ch @ _*) =>
           val tn =

@@ -10,9 +10,9 @@ import slick.util.ConstArray
 class ForceOuterBinds extends Phase {
   val name = "forceOuterBinds"
 
-  def apply(state: CompilerState): CompilerState = state.map(apply)
+  def apply(state: CompilerState): CompilerState = state.map(apply(_)(state.global))
 
-  def apply(n: Node): Node = {
+  def apply(n: Node)(implicit global: SymbolScope): Node = {
     val t = n.nodeType.structuralRec
     val n2 =
       if(!t.isInstanceOf[CollectionType]) First(wrap(Pure(n)))

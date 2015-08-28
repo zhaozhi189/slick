@@ -3,7 +3,7 @@ package slick.compiler
 import scala.collection.immutable.HashMap
 import slick.SlickException
 import slick.util._
-import slick.ast.{SymbolNamer, Node}
+import slick.ast.{SymbolScope, SymbolNamer, Node}
 import org.slf4j.LoggerFactory
 
 /** An immutable, stateless query compiler consisting of a series of phases */
@@ -203,25 +203,31 @@ object Phase {
   * additional immutable state of individual phases. Mutability is confined
   * to the SymbolNamer. The state is tied to a specific compiler instance so
   * that phases can call back into the compiler. */
-class CompilerState private (val compiler: QueryCompiler, val symbolNamer: SymbolNamer,
-                             val tree: Node, state: HashMap[String, Any], val wellTyped: Boolean) {
+class CompilerState private (val compiler: QueryCompiler,
+                             val symbolNamer: SymbolNamer,
+                             /** The current AST */
+                             val tree: Node,
+                             state: HashMap[String, Any],
+                             /** The global symbol table */
+                             val global: SymbolScope,
+                             /** Whether or not the AST should be well-typed after every phase */
+                             val wellTyped: Boolean) {
   def this(compiler: QueryCompiler, tree: Node) =
-    this(compiler, new SymbolNamer("s", "t"), tree, new HashMap, false)
+    this(compiler, new SymbolNamer("s", "t"), tree, new HashMap, SymbolScope.empty, false)
 
   /** Get the phase state for a phase */
   def get[P <: Phase](p: P): Option[p.State] = state.get(p.name).asInstanceOf[Option[p.State]]
 
   /** Return a new `CompilerState` with the given mapping of phase to phase state */
   def + [S, P <: Phase { type State = S }](t: (P, S)) =
-    new CompilerState(compiler, symbolNamer, tree, state + (t._1.name -> t._2), wellTyped)
-
-  /** Return a new `CompilerState` which encapsulates the specified AST */
-  def withNode(tree: Node) = new CompilerState(compiler, symbolNamer, tree, state, wellTyped)
-
-  /** Return a new `CompilerState` which indicates whether or not the AST should be well-typed
-    * after every phase. */
-  def withWellTyped(wellTyped: Boolean) = new CompilerState(compiler, symbolNamer, tree, state, wellTyped)
+    new CompilerState(compiler, symbolNamer, tree, state + (t._1.name -> t._2), global, wellTyped)
 
   /** Return a new `CompilerState` with a transformed AST */
-  def map(f: Node => Node) = withNode(f(tree))
+  def map(f: Node => Node) = copy(tree = f(tree))
+
+  /** Return a new `CompilerState` with modified data */
+  def copy(tree: Node = tree, globals: SymbolScope = global, wellTyped: Boolean = wellTyped): CompilerState =
+    new CompilerState(compiler, symbolNamer, tree, state, globals, wellTyped)
+
+  implicit def implicitGlobal = global
 }

@@ -14,10 +14,10 @@ class VerifyTypes(after: Option[Phase] = None) extends Phase {
 
   def apply(state: CompilerState) = state.map { tree =>
     logger.debug(s"Verifying types")
-    check(tree)
+    check(tree)(state.global)
   }
 
-  def check(tree: Node): Node = {
+  def check(tree: Node)(implicit global: SymbolScope): Node = {
     val retyped = tree.replace({
       case t: TableNode =>
         t.nodeType match {

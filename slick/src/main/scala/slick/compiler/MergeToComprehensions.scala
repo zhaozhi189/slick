@@ -26,10 +26,10 @@ class MergeToComprehensions extends Phase {
   type Mappings = ConstArray[((TypeSymbol, TermSymbol), List[TermSymbol])]
 
   def apply(state: CompilerState) = state.map(n => ClientSideOp.mapResultSetMapping(n, keepType = false) { rsm =>
-    rsm.copy(from = convert(rsm.from), map = rsm.map.replace { case r: Ref => r.untyped })
-  }.infer())
+    rsm.copy(from = convert(rsm.from)(state.global), map = rsm.map.replace { case r: Ref => r.untyped })
+  }.infer()(state.global))
 
-  def convert(tree: Node): Node = {
+  def convert(tree: Node)(implicit global: SymbolScope): Node = {
     // Find all references into tables so we can convert TableNodes to Comprehensions
     val tableFields =
       tree.collect { case Select(_ :@ NominalType(t: TableIdentitySymbol, _), f) => (t, f) }
@@ -198,8 +198,8 @@ class MergeToComprehensions extends Phase {
                   FwdPath((if(idx == 1) ls else rs) :: ss)
                 case _ => p
               }
-          }, bottomUp = true).infer(
-              scope = Type.Scope(j.leftGen -> l2.nodeType.asCollectionType.elementType) +
+          }, bottomUp = true).infer()(
+              global + (j.leftGen -> l2.nodeType.asCollectionType.elementType) +
                 (j.rightGen -> r2.nodeType.asCollectionType.elementType))
           logger.debug(s"Transformed `on` clause in Join $ls/$rs:", on2)
           val j2 = j.copy(left = l2, right = r2, on = on2).infer()
@@ -270,7 +270,7 @@ class MergeToComprehensions extends Phase {
     * This method is used at different stages of the pipeline. */
   def mergeCommon(rec: (Node, Boolean) => (Comprehension, Replacements), parent: (Node, Boolean) => (Comprehension, Replacements),
                   n: Node, buildBase: Boolean,
-                  allowFilter: Boolean = true): (Comprehension, Replacements) = n match {
+                  allowFilter: Boolean = true)(implicit global: SymbolScope): (Comprehension, Replacements) = n match {
     case Bind(s1, f1, Pure(StructNode(defs1), ts1)) if !f1.isInstanceOf[GroupBy] =>
       val (c1, replacements1) = rec(f1, true)
       logger.debug("Merging Bind into Comprehension as 'select':", Ellipsis(n, List(0)))

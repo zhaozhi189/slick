@@ -1,7 +1,9 @@
 package slick.ast
 
 import Util._
+import slick.SlickException
 import slick.util.ConstArray
+import scala.collection.immutable
 import scala.collection.mutable.HashMap
 import scala.util.DynamicVariable
 
@@ -109,4 +111,32 @@ object SymbolNamer {
     val n = dyn.value
     if(n eq null) s.name else n(s)
   }
+}
+
+/** An immutable symbol table that can resolve a Type by TermSymbol (for local definitions) or
+  * TypeSymbol (for global NominalTypes). */
+class SymbolScope(val _map: Map[Symbol, Type]) extends AnyVal {
+  def + (st: (Symbol, Type)): SymbolScope = new SymbolScope(_map + st)
+  def apply(s: Symbol): Type = _map(s)
+  def get(s: Symbol): Option[Type] = _map.get(s)
+}
+
+object SymbolScope {
+  /** The empty SymbolScope to which more definitions can be added */
+  val empty: SymbolScope = new SymbolScope(Map.empty)
+
+  /** A special empty SymbolScope that cannot be queried or have TypeSymbols added to it. This is
+    * used for inferring types in well isolated parts of an AST where you know (and want to
+    * enforce) that no global types need to be used. */
+  val local: SymbolScope = new SymbolScope(new immutable.HashMap[Symbol, Type] {
+    override def + [B1 >: Type](kv: (Symbol, B1)): immutable.HashMap[Symbol, B1] = kv._1 match {
+      case _: TypeSymbol =>
+        throw new SlickException("SymbolScope.local cannot add new TypeSymbols")
+      case _ => super.+(kv)
+    }
+    override def apply(s: Symbol): Type =
+      throw new SlickException("SymbolScope.local cannot resolve Symbols")
+    override def get(s: Symbol): Option[Type] =
+      throw new SlickException("SymbolScope.local cannot resolve Symbols")
+  })
 }

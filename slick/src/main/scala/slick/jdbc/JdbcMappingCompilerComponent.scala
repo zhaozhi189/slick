@@ -57,7 +57,7 @@ trait JdbcMappingCompilerComponent { driver: JdbcDriver =>
     def compileServerSideAndMapping(serverSide: Node, mapping: Option[Node], state: CompilerState) = {
       val (tree, tpe) = treeAndType(serverSide)
       val sbr = f(driver.createQueryBuilder(tree, state))
-      (CompiledStatement(sbr.sql, sbr, tpe).infer(), mapping.map(mappingCompiler.compileMapping))
+      (CompiledStatement(sbr.sql, sbr, tpe).infer()(state.global), mapping.map(mappingCompiler.compileMapping))
     }
   }
 
@@ -66,7 +66,8 @@ trait JdbcMappingCompilerComponent { driver: JdbcDriver =>
     def compileServerSideAndMapping(serverSide: Node, mapping: Option[Node], state: CompilerState) = {
       val ib = f(serverSide.asInstanceOf[Insert])
       val ibr = ib.buildInsert
-      (CompiledStatement(ibr.sql, ibr, serverSide.nodeType).infer(), mapping.map(n => mappingCompiler.compileMapping(ib.transformMapping(n))))
+      (CompiledStatement(ibr.sql, ibr, serverSide.nodeType).infer()(state.global),
+        mapping.map(n => mappingCompiler.compileMapping(ib.transformMapping(n))))
     }
   }
 

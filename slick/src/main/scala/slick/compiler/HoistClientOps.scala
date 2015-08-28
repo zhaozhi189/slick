@@ -13,6 +13,7 @@ class HoistClientOps extends Phase {
   val name = "hoistClientOps"
 
   def apply(state: CompilerState) = state.map(ClientSideOp.mapResultSetMapping(_) { rsm =>
+    import state.implicitGlobal
     val from1 = shuffle(rsm.from)
     from1 match {
       case Bind(s2, from2, Pure(StructNode(defs2), ts2)) =>
@@ -35,7 +36,7 @@ class HoistClientOps extends Phase {
   })
 
   /** Pull Bind nodes up to the top level through Filter and CollectionCast. */
-  def shuffle(n: Node): Node = n match {
+  def shuffle(n: Node)(implicit global: SymbolScope): Node = n match {
     case n @ Bind(s1, from1, sel1) =>
       shuffle(from1) match {
         // Merge nested Binds
@@ -149,7 +150,7 @@ class HoistClientOps extends Phase {
   }
 
   /** Rewrite remaining `GetOrElse` operations in the server-side tree into conditionals. */
-  def rewriteDBSide(tree: Node): Node = tree.replace({
+  def rewriteDBSide(tree: Node)(implicit global: SymbolScope): Node = tree.replace({
     case GetOrElse(OptionApply(ch), _) => ch
     case n @ GetOrElse(ch :@ OptionType(tpe), default) =>
       logger.debug("Translating GetOrElse to IfNull", n)

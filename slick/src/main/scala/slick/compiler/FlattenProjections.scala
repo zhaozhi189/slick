@@ -43,7 +43,7 @@ class FlattenProjections extends Phase {
         n.mapChildren { ch => tr(ch, true) }
       case n => n.mapChildren(tr(_, false))
     }
-    tr(tree, true).infer()
+    tr(tree, true).infer()(state.global)
   }
 
   /** Split a path into the shortest part with a NominalType and the rest on

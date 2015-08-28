@@ -13,6 +13,7 @@ class CreateResultSetMapping extends Phase {
   val name = "createResultSetMapping"
 
   def apply(state: CompilerState) = state.map { n =>
+    import state.implicitGlobal
     val tpe = state.get(Phase.removeMappedTypes).get
     ClientSideOp.mapServerSide(n, keepType = false) { ch =>
       val syms = ch.nodeType.structural match {
@@ -32,12 +33,12 @@ class CreateResultSetMapping extends Phase {
 
   def collectionCast(ch: Node, cons: CollectionTypeConstructor): Node = ch.nodeType match {
     case CollectionType(c, _) if c == cons => ch
-    case _ => CollectionCast(ch, cons).infer()
+    case _ => CollectionCast(ch, cons)
   }
 
   /** Create a structured return value for the client side, based on the
     * result type (which may contain MappedTypes). */
-  def createResult(ref: Ref, tpe: Type, syms: ConstArray[TermSymbol]): Node = {
+  def createResult(ref: Ref, tpe: Type, syms: ConstArray[TermSymbol])(implicit global: SymbolScope): Node = {
     var curIdx = 0
     def f(tpe: Type): Node = {
       logger.debug("Creating mapping from "+tpe)
@@ -73,7 +74,7 @@ class RemoveMappedTypes extends Phase {
   type State = Type
 
   def apply(state: CompilerState) =
-    state.withNode(removeTypeMapping(state.tree)) + (this -> state.tree.nodeType)
+    state.copy(tree = removeTypeMapping(state.tree)) + (this -> state.tree.nodeType)
 
   /** Remove TypeMapping nodes and MappedTypes */
   def removeTypeMapping(n: Node): Node = n match {

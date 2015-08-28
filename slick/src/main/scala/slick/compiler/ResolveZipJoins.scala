@@ -21,6 +21,7 @@ class ResolveZipJoins(rownumStyle: Boolean = false) extends Phase {
   val condBelow: Subquery.Condition = if(rownumStyle) Subquery.BelowRownum else Subquery.BelowRowNumber
 
   def apply(state: CompilerState) = {
+    import state.implicitGlobal
     val n2 = state.tree.replace({
       case b @ Bind(s1,
           Join(_, _, Bind(ls, from, Pure(StructNode(defs), _)), RangeFrom(offset), JoinType.Zip, LiteralNode(true)),
@@ -38,7 +39,7 @@ class ResolveZipJoins(rownumStyle: Boolean = false) extends Phase {
         logger.debug("Transformed zip:", b2)
         b2
     }, bottomUp = true).infer()
-    state + (this -> (n2 ne state.tree)) withNode n2
+    state.copy(tree = n2) + (this -> (n2 ne state.tree))
   }
 
   /** Transform a `zipWithIndex` operation of the form
@@ -46,7 +47,7 @@ class ResolveZipJoins(rownumStyle: Boolean = false) extends Phase {
     * into an equivalent mapping operation using `RowNum`. This method can be overridden in
     * subclasses to implement non-standard translations. */
   def transformZipWithIndex(s1: TermSymbol, ls: TermSymbol, from: Node,
-                            defs: ConstArray[(TermSymbol, Node)], offset: Long, p: Node): Node = {
+                            defs: ConstArray[(TermSymbol, Node)], offset: Long, p: Node)(implicit global: SymbolScope): Node = {
     val idxSym = new AnonSymbol
     val idxExpr =
       if(offset == 1L) RowNumber()
@@ -64,7 +65,7 @@ class ResolveZipJoins(rownumStyle: Boolean = false) extends Phase {
     * join into `zipWithIndex` and then using `transformZipWithIndex` on those. */
   def transformZip(s1: TermSymbol, jlsym: TermSymbol, jrsym: TermSymbol,
                    l: Bind, ldefs: ConstArray[(TermSymbol, Node)],
-                   r: Bind, rdefs: ConstArray[(TermSymbol, Node)], sel: Node): Node = {
+                   r: Bind, rdefs: ConstArray[(TermSymbol, Node)], sel: Node)(implicit global: SymbolScope): Node = {
     val lmap = ldefs.iterator.map(t => (t._1, new AnonSymbol)).toMap
     val rmap = rdefs.iterator.map(t => (t._1, new AnonSymbol)).toMap
     val lisym, risym, l2sym, r2sym = new AnonSymbol

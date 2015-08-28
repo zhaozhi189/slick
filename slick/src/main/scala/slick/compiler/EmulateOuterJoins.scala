@@ -16,11 +16,11 @@ class EmulateOuterJoins(val useLeftJoin: Boolean, val useRightJoin: Boolean) ext
   val name = "emulateOuterJoins"
 
   def apply(state: CompilerState) = state.map(tree => ClientSideOp.mapServerSide(tree, true){ n =>
-    val n2 = convert(n)
-    if(n2 eq n) n2 else Phase.forceOuterBinds.apply(n2)
+    val n2 = convert(n)(state.global)
+    if(n2 eq n) n2 else Phase.forceOuterBinds.apply(n2)(state.global)
   })
 
-  def convert(n: Node): Node = n match {
+  def convert(n: Node)(implicit global: SymbolScope): Node = n match {
     case Join(leftGen, rightGen, left, right, JoinType.Left, on) if !useLeftJoin =>
       // as leftJoin bs on e => (as join bs on e) unionAll as.filter(a => !exists(bs.filter(b => e(a, b)))).map(a => (a, nulls))
       val lgen2, rgen2, bgen = new AnonSymbol

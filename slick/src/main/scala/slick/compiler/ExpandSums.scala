@@ -12,13 +12,13 @@ import scala.collection.mutable
 class ExpandSums extends Phase {
   val name = "expandSums"
 
-  def apply(state: CompilerState) = state.map(n => tr(n, Set.empty))
+  def apply(state: CompilerState) = state.map(n => tr(n, Set.empty)(state.global))
 
   val Disc1 = LiteralNode(ScalaBaseType.optionDiscType.optionType, Option(1))
   val DiscNone = LiteralNode(ScalaBaseType.optionDiscType.optionType, None)
 
   /** Perform the sum expansion on a Node */
-  def tr(tree: Node, oldDiscCandidates: Set[(TypeSymbol, List[TermSymbol])]): Node = {
+  def tr(tree: Node, oldDiscCandidates: Set[(TypeSymbol, List[TermSymbol])])(implicit global: SymbolScope): Node = {
     val discCandidates = oldDiscCandidates ++ (tree match {
       case Filter(_, _, p) => collectDiscriminatorCandidates(p)
       case Bind(_, j: Join, _) => collectDiscriminatorCandidates(j.on)
@@ -91,7 +91,7 @@ class ExpandSums extends Phase {
   }
 
   /** Translate an Option-extended left outer, right outer or full outer join */
-  def translateJoin(bind: Bind, discCandidates: Set[(TypeSymbol, List[TermSymbol])]): Bind = {
+  def translateJoin(bind: Bind, discCandidates: Set[(TypeSymbol, List[TermSymbol])])(implicit global: SymbolScope): Bind = {
     logger.debug("translateJoin", bind)
     val Bind(bsym, (join @ Join(lsym, rsym, left :@ CollectionType(_, leftElemType), right :@ CollectionType(_, rightElemType), jt, on)) :@ CollectionType(cons, elemType), pure) = bind
     val lComplex = !leftElemType.structural.isInstanceOf[AtomicType]
@@ -169,7 +169,7 @@ class ExpandSums extends Phase {
         val disc = IfThenElse(ConstArray(Library.==.typed[Boolean](silentCast(OptionType(protoDisc.nodeType), protoDisc), LiteralNode(null)), DiscNone, Disc1))
         ProductNode(ConstArray(disc, rest))
       } else ref
-      silentCast(trType(elemType.asInstanceOf[ProductType].children(idx)), v)
+      silentCast(trType(elemType.asInstanceOf[ProductType].children(idx)), v.infer())
     }
     val ref = ProductNode(ConstArray(optionCast(0, ldisc), optionCast(1, rdisc))).infer()
     val pure2 = pure.replace({
@@ -190,7 +190,7 @@ class ExpandSums extends Phase {
     case n :@ tpe2 if tpe2 == tpe => n
     case n =>
       if(tpe == UnassignedType) throw new SlickTreeException("Unexpected UnassignedType for:", n)
-      Library.SilentCast.typed(tpe, n).infer()
+      Library.SilentCast.typed(tpe, n) :@ tpe
   }
 
   /** Create a Node representing a structure of null values of the given Type */
@@ -222,7 +222,7 @@ class ExpandSums extends Phase {
   }
 
   /** Fuse unnecessary Option operations */
-  def fuse(n: Node): Node = n match {
+  def fuse(n: Node)(implicit global: SymbolScope): Node = n match {
     // Option.map
     case IfThenElse(ConstArray(Library.==(disc, Disc1), ProductNode(ConstArray(Disc1, map)), ProductNode(ConstArray(DiscNone, _)))) =>
       ProductNode(ConstArray(disc, map)).infer()

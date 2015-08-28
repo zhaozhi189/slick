@@ -17,9 +17,9 @@ class RewriteBooleans extends Phase {
   val name = "rewriteBooleans"
 
   def apply(state: CompilerState) =
-    state.map { n => ClientSideOp.mapServerSide(n)(rewriteRec) }
+    state.map { n => ClientSideOp.mapServerSide(n)(rewriteRec(_)(state.global)) }
 
-  def rewriteRec(n: Node): Node = {
+  def rewriteRec(n: Node)(implicit global: SymbolScope): Node = {
     val n2 = n.mapChildren(rewriteRec, true)
     val n3 = rewrite(n2)
     if(n3 ne n2) logger.debug(s"Rewriting $n2 to $n3")
@@ -28,7 +28,7 @@ class RewriteBooleans extends Phase {
 
   /** Rewrite a single Node. This method can be overridden in subclasses to
     * change the situations in which conversions are applied. */
-  def rewrite(n: Node): Node = n match {
+  def rewrite(n: Node)(implicit global: SymbolScope): Node = n match {
     // These boolean operators accept and produce real booleans
     case Apply(sym @ (Library.And | Library.Or | Library.Not), ch) =>
       toFake(Apply(sym, ch.map(n => toReal(n)))(n.nodeType).infer())
@@ -49,14 +49,14 @@ class RewriteBooleans extends Phase {
     * conversion to a real boolean. */
   def toFake(n: Node) = n match {
     case ToRealBoolean(ch) => ch
-    case _ => ToFakeBoolean.typed(n.nodeType, n).infer()
+    case _ => ToFakeBoolean.typed(n.nodeType, n) :@ n.nodeType
   }
 
   /** Create a conversion to a real boolean, cancelling out an existing
     * conversion to a fake boolean. */
   def toReal(n: Node) = n match {
     case ToFakeBoolean(ch) => ch
-    case _ => ToRealBoolean.typed(n.nodeType, n).infer()
+    case _ => ToRealBoolean.typed(n.nodeType, n) :@ n.nodeType
   }
 
   /** Check if a type is equivalent to the Scala Boolean type or a (possibly

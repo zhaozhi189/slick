@@ -10,6 +10,7 @@ class RemoveFieldNames extends Phase {
   val name = "removeFieldNames"
 
   def apply(state: CompilerState) = state.map { n => ClientSideOp.mapResultSetMapping(n, true) { rsm =>
+    import state.implicitGlobal
     val CollectionType(_, NominalType(top, StructType(fdefs))) = rsm.from.nodeType
     val indexes = fdefs.iterator.zipWithIndex.map { case ((s, _), i) => (s, ElementSymbol(i+1)) }.toMap
     val rsm2 = rsm.nodeMapServerSide(false, { n =>

@@ -49,17 +49,17 @@ trait MemoryQueryingDriver extends BasicDriver with MemoryQueryingProfile { driv
   }): ScalaType[_]).asInstanceOf[ScalaType[Any]]
 
   class MemoryCodeGen extends CodeGen with ResultConverterCompiler[MemoryResultConverterDomain] {
-    override def apply(state: CompilerState): CompilerState = state.map(n => retype(apply(n, state))).withWellTyped(false)
+    override def apply(state: CompilerState): CompilerState = state.map(n => retype(apply(n, state))(state.global)).copy(wellTyped = false)
 
     def compileServerSideAndMapping(serverSide: Node, mapping: Option[Node], state: CompilerState) = (serverSide, mapping.map(compileMapping))
 
-    def retype(n: Node): Node = {
+    def retype(n: Node)(implicit global: SymbolScope): Node = {
       val n2 = transformSimpleGrouping(n)
       val n3 = n2.mapChildren(retype, keepType = true)
       n3 :@ trType(n3.nodeType)
     }
 
-    def transformSimpleGrouping(n: Node) = n match {
+    def transformSimpleGrouping(n: Node)(implicit global: SymbolScope) = n match {
       case Bind(gen, g: GroupBy, p @ Pure((_: ProductNode | _: StructNode), _)) =>
         val p2 = transformCountAll(gen, p)
         if(p2 eq p) n else Bind(gen, g, p2).infer(typeChildren = true)

@@ -15,6 +15,8 @@ class InsertCompiler(val mode: InsertCompiler.Mode) extends Phase {
   override protected[this] lazy val logger = new SlickLogger(LoggerFactory.getLogger(classOf[CodeGen]))
 
   def apply(state: CompilerState) = state.map { tree =>
+    import state.implicitGlobal
+
     val tableSym, linearSym = new AnonSymbol
     val tref = Ref(tableSym)
     val rref = Ref(linearSym)

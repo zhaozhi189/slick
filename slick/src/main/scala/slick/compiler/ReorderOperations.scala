@@ -9,11 +9,11 @@ import slick.util.{ConstArray, Ellipsis, ??}
 class ReorderOperations extends Phase {
   val name = "reorderOperations"
 
-  def apply(state: CompilerState) = state.map(convert)
+  def apply(state: CompilerState) = state.map(convert(_)(state.global))
 
-  def convert(tree: Node): Node = tree.replace({ case n => convert1(n) }, keepType = true, bottomUp = true)
+  def convert(tree: Node)(implicit global: SymbolScope): Node = tree.replace({ case n => convert1(n) }, keepType = true, bottomUp = true)
 
-  def convert1(tree: Node): Node = tree match {
+  def convert1(tree: Node)(implicit global: SymbolScope): Node = tree match {
     // Push Bind into Union
     case n @ Bind(s1, Union(l1, r1, all), sel) =>
       logger.debug("Pushing Bind into both sides of a Union", Ellipsis(n, List(0, 0), List(0, 1)))

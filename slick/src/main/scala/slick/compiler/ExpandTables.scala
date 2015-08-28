@@ -12,6 +12,8 @@ class ExpandTables extends Phase {
   val name = "expandTables"
 
   def apply(state: CompilerState) = state.map { n => ClientSideOp.mapServerSide(n) { tree =>
+    import state.implicitGlobal
+
     // Find table fields
     val structs = tree.collect[(TypeSymbol, (FieldSymbol, Type))] {
       case s @ Select(_ :@ (n: NominalType), sym: FieldSymbol) => n.sourceNominalType.sym -> (sym -> s.nodeType)
@@ -40,10 +42,10 @@ class ExpandTables extends Phase {
       // Create a mapping that expands the tables
       val sym = new AnonSymbol
       val mapping = createResult(tables, Ref(sym), tree2.nodeType.asCollectionType.elementType)
-        .infer(Type.Scope(sym -> tree2.nodeType.asCollectionType.elementType))
+        .infer()(state.global + (sym -> tree2.nodeType.asCollectionType.elementType))
       Bind(sym, tree2, Pure(mapping)).infer()
     }
-  }}.withWellTyped(true)
+  }}.copy(wellTyped = true)
 
   /** Create an expression that copies a structured value, expanding tables in it. */
   def createResult(expansions: Map[TableIdentitySymbol, (TermSymbol, Node)], path: Node, tpe: Type): Node = tpe match {

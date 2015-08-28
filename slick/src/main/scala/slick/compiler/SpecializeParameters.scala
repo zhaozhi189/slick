@@ -11,9 +11,9 @@ class SpecializeParameters extends Phase {
   val name = "specializeParameters"
 
   def apply(state: CompilerState): CompilerState =
-    state.map(ClientSideOp.mapServerSide(_, keepType = true)(transformServerSide))
+    state.map(ClientSideOp.mapServerSide(_, keepType = true)(transformServerSide(_)(state.global)))
 
-  def transformServerSide(n: Node): Node = {
+  def transformServerSide(n: Node)(implicit global: SymbolScope): Node = {
     val cs = n.collect { case c @ Comprehension(_, _, _, _, _, _, _, Some(_: QueryParameter), _) => c }
     logger.debug("Affected fetch clauses in: "+cs.mkString(", "))
     cs.foldLeft(n) { case (n, c @ Comprehension(_, _, _, _, _, _, _, Some(fetch: QueryParameter), _)) =>

@@ -13,6 +13,7 @@ class RemoveTakeDrop extends Phase {
   val name = "removeTakeDrop"
 
   def apply(state: CompilerState) = state.map { n =>
+    import state.implicitGlobal //TODO
     val invalid = mutable.Set[TypeSymbol]()
     def tr(n: Node): Node = n.replace {
       case n @ TakeDrop(from, t, d) =>
@@ -62,9 +63,9 @@ class RemoveTakeDrop extends Phase {
         case _ => Some((from, Some(num), None))
       }
       case Drop(from, num) => unapply(from) match {
-        case Some((f, Some(t), None)) => Some((f, Some(constOp[Long]("max")(math.max)(LiteralNode(0L).infer(), constOp[Long]("-")(_ - _)(t, num))), Some(num)))
+        case Some((f, Some(t), None)) => Some((f, Some(constOp[Long]("max")(math.max)(LiteralNode(0L).infer, constOp[Long]("-")(_ - _)(t, num))), Some(num)))
         case Some((f, None, Some(d))) => Some((f, None, Some(constOp[Long]("+")(_ + _)(d, num))))
-        case Some((f, Some(t), Some(d))) => Some((f, Some(constOp[Long]("max")(math.max)(LiteralNode(0L).infer(), constOp[Long]("-")(_ - _)(t, num))), Some(constOp[Long]("+")(_ + _)(d, num))))
+        case Some((f, Some(t), Some(d))) => Some((f, Some(constOp[Long]("max")(math.max)(LiteralNode(0L).infer, constOp[Long]("-")(_ - _)(t, num))), Some(constOp[Long]("+")(_ + _)(d, num))))
         case _ => Some((from, None, Some(num)))
       }
       case _ => None

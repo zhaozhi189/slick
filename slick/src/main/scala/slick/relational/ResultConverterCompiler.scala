@@ -53,7 +53,7 @@ trait ResultConverterCompiler[Domain <: ResultConverterDomain] {
   def compileMapping(n: Node): CompiledMapping = {
     val rc = compile(n)
     ResultConverterCompiler.logger.debug("Compiled ResultConverter", rc)
-    CompiledMapping(rc, n.nodeType).infer()
+    CompiledMapping(rc, n.nodeType).infer()(SymbolScope.local)
   }
 }
 
