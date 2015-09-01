@@ -66,7 +66,7 @@ trait Node extends Dumpable {
   }
 
   /** Get the current type of this node for debug output without marking it as seen. */
-  protected[this] def peekType: Type = _type
+  private[slick] def peekType: Type = _type
 
   /** Check if this node has a type without marking the type as seen. */
   def hasType: Boolean = _type != UnassignedType
@@ -85,10 +85,10 @@ trait Node extends Dumpable {
   /** Rebuild this node and all children with their computed type. If this node already has a type,
     * the children are only type-checked again if ``typeChildren`` is true. If this node does not
     * yet have a type, the types of all children are computed first. */
-  final def infer(typeChildren: Boolean = false)(implicit scope: SymbolScope): Self =
+  final def infer(scope: SymbolScope = SymbolScope.empty, typeChildren: Boolean = false)(implicit global: GlobalTypes): Self =
     if(hasType && !typeChildren) this else withInferredType(scope, typeChildren)
 
-  protected[this] def withInferredType(scope: SymbolScope, typeChildren: Boolean): Self
+  protected[this] def withInferredType(scope: SymbolScope, typeChildren: Boolean)(implicit global: GlobalTypes): Self
 
   def getDumpInfo = {
     val (objName, mainInfo) = this match {
@@ -118,8 +118,8 @@ trait SimplyTypedNode extends Node {
 
   protected def buildType: Type
 
-  final def withInferredType(scope: SymbolScope, typeChildren: Boolean): Self = {
-    val this2: Self = mapChildren(_.infer(typeChildren)(scope), keepType = true)
+  final def withInferredType(scope: SymbolScope, typeChildren: Boolean)(implicit global: GlobalTypes): Self = {
+    val this2: Self = mapChildren(_.infer(scope, typeChildren), keepType = true)
     if(!hasType) (this2 :@ this2.buildType).asInstanceOf[Self] else this2
   }
 }
@@ -240,12 +240,19 @@ trait NullaryNode extends Node {
 }
 
 /** An expression that represents a plain value lifted into a Query. */
-final case class Pure(value: Node, identity: TypeSymbol = new AnonTypeSymbol) extends UnaryNode with SimplyTypedNode {
+final case class Pure(value: Node, identity: TypeSymbol = new AnonTypeSymbol) extends UnaryNode with TypeGenerator{
   type Self = Pure
   def child = value
   override def childNames = Seq("value")
   protected[this] def rebuild(child: Node) = copy(child)
-  protected def buildType = CollectionType(TypedCollectionTypeConstructor.seq, NominalType(identity, value.nodeType))
+  final def withInferredType(scope: SymbolScope, typeChildren: Boolean)(implicit global: GlobalTypes): Self = {
+    val this2: Self = mapChildren(_.infer(scope, typeChildren), keepType = true)
+    if(!hasType) {
+      global += (identity -> this2.value.nodeType)
+      this2 :@ CollectionType(TypedCollectionTypeConstructor.seq, NominalType(identity, this2.value.nodeType))
+    }
+    else this2
+  }
 }
 
 final case class CollectionCast(child: Node, cons: CollectionTypeConstructor) extends UnaryNode with SimplyTypedNode {
@@ -289,11 +296,11 @@ abstract class FilteredQuery extends Node {
     case _ => ""
   })
 
-  def withInferredType(scope: SymbolScope, typeChildren: Boolean): Self = {
-    val from2 = from.infer(typeChildren)(scope)
+  def withInferredType(scope: SymbolScope, typeChildren: Boolean)(implicit global: GlobalTypes): Self = {
+    val from2 = from.infer(scope, typeChildren)
     val genScope = scope + (generator -> from2.nodeType.asCollectionType.elementType)
         val this2 = mapChildren { ch =>
-      if(ch eq from) from2 else ch.infer(typeChildren)(genScope)
+      if(ch eq from) from2 else ch.infer(genScope, typeChildren)
     }
     (this2 :@ (if(!hasType) this2.from.nodeType else nodeType)).asInstanceOf[Self]
   }
@@ -348,7 +355,7 @@ object Ordering {
 }
 
 /** A .groupBy call. */
-final case class GroupBy(fromGen: TermSymbol, from: Node, by: Node, identity: TypeSymbol = new AnonTypeSymbol) extends BinaryNode with DefNode {
+final case class GroupBy(fromGen: TermSymbol, from: Node, by: Node, identity: TypeSymbol = new AnonTypeSymbol) extends BinaryNode with DefNode with TypeGenerator {
   type Self = GroupBy
   def left = from
   def right = by
@@ -357,15 +364,16 @@ final case class GroupBy(fromGen: TermSymbol, from: Node, by: Node, identity: Ty
   protected[this] def rebuildWithSymbols(gen: ConstArray[TermSymbol]) = copy(fromGen = gen(0))
   def generators = ConstArray((fromGen, from))
   override def getDumpInfo = super.getDumpInfo.copy(mainInfo = identity.toString)
-  def withInferredType(scope: SymbolScope, typeChildren: Boolean): Self = {
-    val from2 = from.infer(typeChildren)(scope)
+  def withInferredType(scope: SymbolScope, typeChildren: Boolean)(implicit global: GlobalTypes): Self = {
+    val from2 = from.infer(scope, typeChildren)
     val from2Type = from2.nodeType.asCollectionType
-    val by2 = by.infer(typeChildren)(scope + (fromGen -> from2Type.elementType))
+    val by2 = by.infer(scope + (fromGen -> from2Type.elementType), typeChildren)
     val this2 = if((from2 eq from) && (by2 eq by)) this else copy(from = from2, by = by2)
-    this2 :@ (
-      if(!hasType)
-        CollectionType(from2Type.cons, ProductType(ConstArray(NominalType(identity, by2.nodeType), CollectionType(TypedCollectionTypeConstructor.seq, from2Type.elementType))))
-      else nodeType)
+    if(!hasType) {
+      global += identity -> by2.nodeType
+      val tpe = CollectionType(from2Type.cons, ProductType(ConstArray(NominalType(identity, by2.nodeType), CollectionType(TypedCollectionTypeConstructor.seq, from2Type.elementType))))
+      this2 :@ tpe
+    } else this2 :@ nodeType
   }
 }
 
@@ -406,12 +414,12 @@ final case class Join(leftGen: TermSymbol, rightGen: TermSymbol, left: Node, rig
   def generators = ConstArray((leftGen, left), (rightGen, right))
   protected[this] def rebuildWithSymbols(gen: ConstArray[TermSymbol]) =
     copy(leftGen = gen(0), rightGen = gen(1))
-  def withInferredType(scope: SymbolScope, typeChildren: Boolean): Self = {
-    val left2 = left.infer(typeChildren)(scope)
-    val right2 = right.infer(typeChildren)(scope)
+  def withInferredType(scope: SymbolScope, typeChildren: Boolean)(implicit global: GlobalTypes): Self = {
+    val left2 = left.infer(scope, typeChildren)
+    val right2 = right.infer(scope, typeChildren)
     val left2Type = left2.nodeType.asCollectionType
     val right2Type = right2.nodeType.asCollectionType
-    val on2 = on.infer(typeChildren)(scope + (leftGen -> left2Type.elementType) + (rightGen -> right2Type.elementType))
+    val on2 = on.infer(scope + (leftGen -> left2Type.elementType) + (rightGen -> right2Type.elementType), typeChildren)
     val (joinedLeftType, joinedRightType) = jt match {
       case JoinType.LeftOption => (left2Type.elementType, OptionType(right2Type.elementType))
       case JoinType.RightOption => (OptionType(left2Type.elementType), right2Type.elementType)
@@ -445,10 +453,10 @@ final case class Bind(generator: TermSymbol, from: Node, select: Node) extends B
   def generators = ConstArray((generator, from))
   override def getDumpInfo = super.getDumpInfo.copy(mainInfo = "")
   protected[this] def rebuildWithSymbols(gen: ConstArray[TermSymbol]) = copy(generator = gen(0))
-  def withInferredType(scope: SymbolScope, typeChildren: Boolean): Self = {
-    val from2 = from.infer(typeChildren)(scope)
+  def withInferredType(scope: SymbolScope, typeChildren: Boolean)(implicit global: GlobalTypes): Self = {
+    val from2 = from.infer(scope, typeChildren)
     val from2Type = from2.nodeType.asCollectionType
-    val select2 = select.infer(typeChildren)(scope + (generator -> from2Type.elementType))
+    val select2 = select.infer(scope + (generator -> from2Type.elementType), typeChildren)
     val withCh = if((from2 eq from) && (select2 eq select)) this else rebuild(from2, select2)
     withCh :@ (
       if(!hasType) CollectionType(from2Type.cons, select2.nodeType.asCollectionType.elementType)
@@ -468,9 +476,9 @@ final case class Aggregate(sym: TermSymbol, from: Node, select: Node) extends Bi
   def generators = ConstArray((sym, from))
   override def getDumpInfo = super.getDumpInfo.copy(mainInfo = "")
   protected[this] def rebuildWithSymbols(gen: ConstArray[TermSymbol]) = copy(sym = gen(0))
-  def withInferredType(scope: SymbolScope, typeChildren: Boolean): Self = {
-    val from2 :@ CollectionType(_, el) = from.infer(typeChildren)(scope)
-    val select2 = select.infer(typeChildren)(scope + (sym -> el))
+  def withInferredType(scope: SymbolScope, typeChildren: Boolean)(implicit global: GlobalTypes): Self = {
+    val from2 :@ CollectionType(_, el) = from.infer(scope, typeChildren)
+    val select2 = select.infer(scope + (sym -> el), typeChildren)
     val this2 = if((from2 eq from) && (select2 eq select)) this else copy(from = from2, select = select2)
     this2 :@ (if(!hasType) select2.nodeType else nodeType)
   }
@@ -486,9 +494,9 @@ final case class TableExpansion(generator: TermSymbol, table: Node, columns: Nod
   def generators = ConstArray((generator, table))
   override def getDumpInfo = super.getDumpInfo.copy(mainInfo = "")
   protected[this] def rebuildWithSymbols(gen: ConstArray[TermSymbol]) = copy(generator = gen(0))
-  def withInferredType(scope: SymbolScope, typeChildren: Boolean): Self = {
-    val table2 = table.infer(typeChildren)(scope)
-    val columns2 = columns.infer(typeChildren)(scope + (generator -> table2.nodeType.asCollectionType.elementType))
+  def withInferredType(scope: SymbolScope, typeChildren: Boolean)(implicit global: GlobalTypes): Self = {
+    val table2 = table.infer(scope, typeChildren)
+    val columns2 = columns.infer(scope + (generator -> table2.nodeType.asCollectionType.elementType), typeChildren)
     val this2 = if((table2 eq table) && (columns2 eq columns)) this else copy(table = table2, columns = columns2)
     this2 :@ (if(!hasType) table2.nodeType else nodeType)
   }
@@ -511,9 +519,9 @@ final case class Select(in: Node, field: TermSymbol) extends PathElement with Un
     case Some(l) => super.getDumpInfo.copy(name = "Path", mainInfo = l.reverseIterator.mkString("."))
     case None => super.getDumpInfo
   }
-  def withInferredType(scope: SymbolScope, typeChildren: Boolean): Self = {
-    val this2: Self = mapChildren(_.infer(typeChildren)(scope), keepType = true)
-    if(!hasType) (this2 :@ this2.in.nodeType.select(field)(scope)).asInstanceOf[Self] else this2
+  def withInferredType(scope: SymbolScope, typeChildren: Boolean)(implicit global: GlobalTypes): Self = {
+    val this2: Self = mapChildren(_.infer(scope, typeChildren), keepType = true)
+    if(!hasType) (this2 :@ this2.in.nodeType.select(field)).asInstanceOf[Self] else this2
   }
   def pathString = in.asInstanceOf[PathElement].pathString+"."+field
   def untypedPath = {
@@ -526,13 +534,14 @@ final case class Select(in: Node, field: TermSymbol) extends PathElement with Un
 final case class Apply(sym: TermSymbol, children: ConstArray[Node])(val buildType: Type) extends SimplyTypedNode {
   type Self = Apply
   protected[this] def rebuild(ch: ConstArray[slick.ast.Node]) = copy(children = ch)(buildType)
-  override def getDumpInfo = super.getDumpInfo.copy(mainInfo = sym.toString)
+  override def getDumpInfo = super.getDumpInfo.copy(mainInfo = sym.toString,
+    attrInfo = (if(peekType == UnassignedType) "// "+buildType else ""))
 }
 
 /** A reference to a Symbol */
 final case class Ref(sym: TermSymbol) extends PathElement with NullaryNode {
   type Self = Ref
-  def withInferredType(scope: SymbolScope, typeChildren: Boolean): Self =
+  def withInferredType(scope: SymbolScope, typeChildren: Boolean)(implicit global: GlobalTypes): Self =
     if(hasType) this else {
       scope.get(sym) match {
         case Some(t) => this :@ t
@@ -598,10 +607,10 @@ object FwdPath {
 }
 
 /** A Node representing a database table. */
-final case class TableNode(schemaName: Option[String], tableName: String, identity: TableIdentitySymbol, driverTable: Any, baseIdentity: TableIdentitySymbol) extends NullaryNode with SimplyTypedNode {
+final case class TableNode(schemaName: Option[String], tableName: String, identity: TableIdentitySymbol, baseIdentity: TableIdentitySymbol)(val driverTable: Any) extends NullaryNode with SimplyTypedNode with TypeGenerator {
   type Self = TableNode
   def buildType = CollectionType(TypedCollectionTypeConstructor.seq, NominalType(identity, UnassignedType))
-  def rebuild = copy()
+  def rebuild = copy()(driverTable)
   override def getDumpInfo = super.getDumpInfo.copy(name = "Table", mainInfo = schemaName.map(_ + ".").getOrElse("") + tableName)
 }
 
@@ -656,7 +665,7 @@ final case class IfThenElse(clauses: ConstArray[Node]) extends SimplyTypedNode {
       case _ => false
     }
     val hasOpt = (ifThenClauses.map(_._2) ++ Iterator(elseClause)).exists(isOpt)
-    if(hasOpt) mapResultClauses(ch => if(isOpt(ch)) ch else OptionApply(ch)).infer()(SymbolScope.local)
+    if(hasOpt) mapResultClauses(ch => if(isOpt(ch)) ch else OptionApply(ch)).infer()(GlobalTypes.local)
     else this
   }
 }
@@ -676,11 +685,11 @@ final case class OptionFold(from: Node, ifEmpty: Node, map: Node, gen: TermSymbo
   override def childNames = Vector("from "+gen, "ifEmpty", "map")
   protected[this] def rebuild(ch: ConstArray[Node]) = copy(ch(0), ch(1), ch(2))
   protected[this] def rebuildWithSymbols(gen: ConstArray[TermSymbol]) = copy(gen = gen(0))
-  protected[this] def withInferredType(scope: SymbolScope, typeChildren: Boolean) = {
-    val from2 = from.infer(typeChildren)(scope)
-    val ifEmpty2 = ifEmpty.infer(typeChildren)(scope)
+  protected[this] def withInferredType(scope: SymbolScope, typeChildren: Boolean)(implicit global: GlobalTypes) = {
+    val from2 = from.infer(scope, typeChildren)
+    val ifEmpty2 = ifEmpty.infer(scope, typeChildren)
     val genScope = scope + (gen -> from2.nodeType.structural.asOptionType.elementType)
-    val map2 = map.infer(typeChildren)(genScope)
+    val map2 = map.infer(genScope, typeChildren)
     withChildren(ConstArray[Node](from2, ifEmpty2, map2)) :@ (if(!hasType) map2.nodeType else nodeType)
   }
   override def getDumpInfo = super.getDumpInfo.copy(mainInfo = "")

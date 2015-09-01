@@ -50,14 +50,14 @@ final case class ResultSetMapping(generator: TermSymbol, from: Node, map: Node) 
   def generators = ConstArray((generator, from))
   override def getDumpInfo = super.getDumpInfo.copy(mainInfo = "")
   protected[this] def rebuildWithSymbols(gen: ConstArray[TermSymbol]) = copy(generator = gen(0))
-  def withInferredType(scope: SymbolScope, typeChildren: Boolean): Self = {
-    val from2 = from.infer(typeChildren)(scope)
+  def withInferredType(scope: SymbolScope, typeChildren: Boolean)(implicit global: GlobalTypes): Self = {
+    val from2 = from.infer(scope, typeChildren)
     val (map2, newType) = from2.nodeType match {
       case CollectionType(cons, elem) =>
-        val map2 = map.infer(typeChildren)(scope + (generator -> elem))
+        val map2 = map.infer(scope + (generator -> elem), typeChildren)
         (map2, CollectionType(cons, map2.nodeType))
       case t =>
-        val map2 = map.infer(typeChildren)(scope + (generator -> t))
+        val map2 = map.infer(scope + (generator -> t), typeChildren)
         (map2, map2.nodeType)
     }
     withChildren(ConstArray[Node](from2, map2)) :@ (if(!hasType) newType else nodeType)

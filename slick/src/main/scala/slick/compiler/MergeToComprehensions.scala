@@ -29,7 +29,7 @@ class MergeToComprehensions extends Phase {
     rsm.copy(from = convert(rsm.from)(state.global), map = rsm.map.replace { case r: Ref => r.untyped })
   }.infer()(state.global))
 
-  def convert(tree: Node)(implicit global: SymbolScope): Node = {
+  def convert(tree: Node)(implicit global: GlobalTypes): Node = {
     // Find all references into tables so we can convert TableNodes to Comprehensions
     val tableFields =
       tree.collect { case Select(_ :@ NominalType(t: TableIdentitySymbol, _), f) => (t, f) }
@@ -102,10 +102,12 @@ class MergeToComprehensions extends Phase {
             rest.foldLeft(b2) { case (n, s) => n.select(s) }.infer()
         }
         val c2 = c1.copy(groupBy = Some(ProductNode(ConstArray(b2)).flatten), select = Pure(str2, ts2)).infer()
+        global -= c1.select.asInstanceOf[Pure].identity
         logger.debug("Merged GroupBy into Comprehension:", c2)
         val StructNode(defs2) = str2
         val replacements = defs2.iterator.map { case (f, _) => (ts2, f) -> f }.toMap
         logger.debug("Replacements are: "+replacements)
+        global -= ts1
         (c2, replacements)
 
       case n @ Pure(Aggregate(s1, f1, str1), ts) =>
@@ -113,6 +115,7 @@ class MergeToComprehensions extends Phase {
         logger.debug("Merging Aggregate source into Comprehension:", Ellipsis(n, List(0, 0)))
         val str2 = applyReplacements(str1, replacements1, c1)
         val c2 = c1.copy(select = Pure(str2, ts)).infer()
+        global -= c1.select.asInstanceOf[Pure].identity
         logger.debug("Merged Aggregate source into Comprehension:", c2)
         val StructNode(defs) = str2
         val repl = defs.iterator.map { case (f, _) => ((ts, f), f) }.toMap
@@ -166,22 +169,24 @@ class MergeToComprehensions extends Phase {
       case j @ Join(ls, rs, l1, r1, jt, on1) =>
         logger.debug(s"Creating source from Join $ls/$rs:", j)
         val (l2 @ (_ :@ CollectionType(_, ltpe)), lmap) = dealias(l1)(createSourceOrTopLevel)
-        val (r2 @ (_ :@ CollectionType(_, rtpe)), rmap) = dealias(r1)(createSourceOrTopLevel)
         logger.debug(s"Converted left side of Join $ls/$rs:", l2)
+        val (r2 @ (_ :@ CollectionType(_, rtpe)), rmap) = dealias(r1)(createSourceOrTopLevel)
         logger.debug(s"Converted right side of Join $ls/$rs:", r2)
         // Detect and remove empty join sides
         val noCondition = on1 == LiteralNode(true).infer()
         val noLeft = l2 match {
-          case Pure(StructNode(ConstArray()), _) => true
-          case _ => false
+          case Pure(StructNode(ConstArray()), ts) => Some(ts)
+          case _ => None
         }
         val noRight = r2 match {
-          case Pure(StructNode(ConstArray()), _) => true
-          case _ => false
+          case Pure(StructNode(ConstArray()), ts) => Some(ts)
+          case _ => None
         }
-        if(noLeft && noCondition) {
+        if(noLeft.isDefined && noCondition) {
+          global -= noLeft.get
           Some((r2, rmap))
-        } else if(noRight && noCondition) {
+        } else if(noRight.isDefined && noCondition) {
+          global -= noRight.get
           Some((l2, lmap))
         } else {
           val mappings =
@@ -198,9 +203,9 @@ class MergeToComprehensions extends Phase {
                   FwdPath((if(idx == 1) ls else rs) :: ss)
                 case _ => p
               }
-          }, bottomUp = true).infer()(
-              global + (j.leftGen -> l2.nodeType.asCollectionType.elementType) +
-                (j.rightGen -> r2.nodeType.asCollectionType.elementType))
+          }, bottomUp = true).infer(
+              SymbolScope((j.leftGen -> l2.nodeType.asCollectionType.elementType),
+                (j.rightGen -> r2.nodeType.asCollectionType.elementType)))
           logger.debug(s"Transformed `on` clause in Join $ls/$rs:", on2)
           val j2 = j.copy(left = l2, right = r2, on = on2).infer()
           logger.debug(s"Created source from Join $ls/$rs:", j2)
@@ -246,6 +251,7 @@ class MergeToComprehensions extends Phase {
         val (c1, rep) = mergeFilterWhere(a.from, true)
         val sel2 = applyReplacements(a.select, rep, c1)
         val c2 = c1.copy(select = Pure(sel2)).infer()
+        global -= c1.select.asInstanceOf[Pure].identity
         val c3 = convertOnlyInScalar(c2)
         val res = Library.SilentCast.typed(a.nodeType, c3).infer()
         logger.debug("Merged Aggregate into Comprehension as:", res)
@@ -270,11 +276,12 @@ class MergeToComprehensions extends Phase {
     * This method is used at different stages of the pipeline. */
   def mergeCommon(rec: (Node, Boolean) => (Comprehension, Replacements), parent: (Node, Boolean) => (Comprehension, Replacements),
                   n: Node, buildBase: Boolean,
-                  allowFilter: Boolean = true)(implicit global: SymbolScope): (Comprehension, Replacements) = n match {
+                  allowFilter: Boolean = true)(implicit global: GlobalTypes): (Comprehension, Replacements) = n match {
     case Bind(s1, f1, Pure(StructNode(defs1), ts1)) if !f1.isInstanceOf[GroupBy] =>
       val (c1, replacements1) = rec(f1, true)
       logger.debug("Merging Bind into Comprehension as 'select':", Ellipsis(n, List(0)))
       val defs2 = defs1.map { case (s, d) => (s, applyReplacements(d, replacements1, c1)) }
+      global -= c1.select.asInstanceOf[Pure].identity
       val c2 = c1.copy(select = Pure(StructNode(defs2), ts1)).infer()
       logger.debug("Merged Bind into Comprehension as 'select':", c2)
       val replacements = defs2.iterator.map { case (f, _) => (ts1, f) -> f }.toMap
@@ -304,7 +311,7 @@ class MergeToComprehensions extends Phase {
 
   /** Remove purely aliasing `Bind` mappings, apply the conversion to the source, then inject the
     * mappings back into the source's mappings. */
-  def dealias(n: Node)(f: Node => (Node, Mappings)): (Node, Mappings) = {
+  def dealias(n: Node)(f: Node => (Node, Mappings))(implicit global: GlobalTypes): (Node, Mappings) = {
     def isAliasing(base: TermSymbol, defs: ConstArray[(TermSymbol, Node)]) = {
       val r = defs.forall {
         case (_, FwdPath(s :: _)) if s == base => true
@@ -327,6 +334,7 @@ class MergeToComprehensions extends Phase {
           val Select(_ :@ NominalType(ts2, _), f2) = sel
           (ts1, f1) -> map1M((ts2, f2))
         }
+        global -= ts1
         (n2, map2)
       case n => f(n)
     }

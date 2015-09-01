@@ -11,9 +11,9 @@ final case class Insert(tableSym: TermSymbol, table: Node, linear: Node) extends
   def generators = ConstArray((tableSym, table))
   def rebuild(l: Node, r: Node) = copy(table = l, linear = r)
   def rebuildWithSymbols(gen: ConstArray[TermSymbol]) = copy(tableSym = gen(0))
-  def withInferredType(scope: SymbolScope, typeChildren: Boolean): Self = {
-    val table2 = table.infer(typeChildren)(scope)
-    val lin2 = linear.infer(typeChildren)(scope + (tableSym -> table2.nodeType))
+  def withInferredType(scope: SymbolScope, typeChildren: Boolean)(implicit global: GlobalTypes): Self = {
+    val table2 = table.infer(scope, typeChildren)
+    val lin2 = linear.infer(scope + (tableSym -> table2.nodeType), typeChildren)
     withChildren(ConstArray[Node](table2, lin2)) :@ (if(!hasType) lin2.nodeType else nodeType)
   }
   override def getDumpInfo = super.getDumpInfo.copy(mainInfo = "")

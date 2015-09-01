@@ -12,7 +12,7 @@ class FixRowNumberOrdering extends Phase {
     if(state.get(Phase.resolveZipJoins).getOrElse(false)) state.map(fix(_)(state.global)) else state
 
   /** Push ORDER BY into RowNumbers in ordered Comprehensions. */
-  def fix(n: Node, parent: Option[Comprehension] = None)(implicit global: SymbolScope): Node = (n, parent) match {
+  def fix(n: Node, parent: Option[Comprehension] = None)(implicit global: GlobalTypes): Node = (n, parent) match {
     case (r @ RowNumber(_), Some(c)) if !c.orderBy.isEmpty =>
       RowNumber(c.orderBy) :@ r.nodeType
     case (c: Comprehension, _) => c.mapScopedChildren {

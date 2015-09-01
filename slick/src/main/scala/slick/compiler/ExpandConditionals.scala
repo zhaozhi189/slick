@@ -14,7 +14,7 @@ class ExpandConditionals extends Phase {
 
   def apply(state: CompilerState) = state.map(expand(_)(state.global))
 
-  def expand(n: Node)(implicit global: SymbolScope): Node = {
+  def expand(n: Node)(implicit global: GlobalTypes): Node = {
     val invalid = mutable.HashSet.empty[TypeSymbol]
     def invalidate(n: Node): Unit = invalid ++= n.nodeType.collect { case NominalType(ts, _) => ts }.toSeq
 

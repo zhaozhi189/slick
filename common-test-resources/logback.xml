@@ -40,6 +40,7 @@
     <logger name="slick.compiler.RemoveFieldNames"          level="${log.qcomp.removeFieldNames:-inherited}" />
     <logger name="slick.compiler.InsertCompiler"            level="${log.qcomp.insertCompiler:-inherited}" />
     <logger name="slick.compiler.VerifyTypes"               level="${log.qcomp.verifyTypes:-inherited}" />
+    <logger name="slick.ast.GlobalTypes"                    level="${log.qcomp.globalTypes:-inherited}" />
     <logger name="slick.jdbc.DriverDataSource"              level="${log.jdbc.driver:-info}" />
     <logger name="slick.jdbc.JdbcBackend.statement"         level="${log.jdbc.statement:-info}" />
     <logger name="slick.jdbc.JdbcBackend.benchmark"         level="${log.jdbc.bench:-info}" />

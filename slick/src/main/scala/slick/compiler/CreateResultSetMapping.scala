@@ -38,7 +38,7 @@ class CreateResultSetMapping extends Phase {
 
   /** Create a structured return value for the client side, based on the
     * result type (which may contain MappedTypes). */
-  def createResult(ref: Ref, tpe: Type, syms: ConstArray[TermSymbol])(implicit global: SymbolScope): Node = {
+  def createResult(ref: Ref, tpe: Type, syms: ConstArray[TermSymbol])(implicit global: GlobalTypes): Node = {
     var curIdx = 0
     def f(tpe: Type): Node = {
       logger.debug("Creating mapping from "+tpe)

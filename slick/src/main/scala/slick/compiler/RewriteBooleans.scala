@@ -19,7 +19,7 @@ class RewriteBooleans extends Phase {
   def apply(state: CompilerState) =
     state.map { n => ClientSideOp.mapServerSide(n)(rewriteRec(_)(state.global)) }
 
-  def rewriteRec(n: Node)(implicit global: SymbolScope): Node = {
+  def rewriteRec(n: Node)(implicit global: GlobalTypes): Node = {
     val n2 = n.mapChildren(rewriteRec, true)
     val n3 = rewrite(n2)
     if(n3 ne n2) logger.debug(s"Rewriting $n2 to $n3")
@@ -28,7 +28,7 @@ class RewriteBooleans extends Phase {
 
   /** Rewrite a single Node. This method can be overridden in subclasses to
     * change the situations in which conversions are applied. */
-  def rewrite(n: Node)(implicit global: SymbolScope): Node = n match {
+  def rewrite(n: Node)(implicit global: GlobalTypes): Node = n match {
     // These boolean operators accept and produce real booleans
     case Apply(sym @ (Library.And | Library.Or | Library.Not), ch) =>
       toFake(Apply(sym, ch.map(n => toReal(n)))(n.nodeType).infer())

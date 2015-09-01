@@ -17,7 +17,7 @@ class VerifyTypes(after: Option[Phase] = None) extends Phase {
     check(tree)(state.global)
   }
 
-  def check(tree: Node)(implicit global: SymbolScope): Node = {
+  def check(tree: Node)(implicit global: GlobalTypes): Node = {
     val retyped = tree.replace({
       case t: TableNode =>
         t.nodeType match {

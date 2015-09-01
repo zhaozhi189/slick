@@ -106,7 +106,7 @@ trait MySQLDriver extends JdbcDriver { driver =>
     // According to http://dev.mysql.com/doc/refman/5.0/en/user-variables.html this should not be
     // relied on but it is the generally accepted solution and there is no better way.
     override def transformZipWithIndex(s1: TermSymbol, ls: TermSymbol, from: Node,
-                                       defs: ConstArray[(TermSymbol, Node)], offset: Long, p: Node)(implicit global: SymbolScope): Node = {
+                                       defs: ConstArray[(TermSymbol, Node)], offset: Long, p: Node)(implicit global: GlobalTypes): Node = {
       val countSym = new AnonSymbol
       val j = Join(new AnonSymbol, new AnonSymbol,
         Bind(ls, from, Pure(StructNode(defs))),

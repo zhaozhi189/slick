@@ -328,7 +328,7 @@ trait JdbcStatementBuilderComponent { driver: JdbcDriver =>
           /* If tuples are not supported, selecting multiple individial columns
            * in exists(select ...) is probably not supported, either, so we rewrite
            * such sub-queries to "select 1". */
-          b"exists\[!${(if(supportsTuples) c else c.copy(select = Pure(LiteralNode(1))).infer()(SymbolScope.local)): Node}\]"
+          b"exists\[!${(if(supportsTuples) c else c.copy(select = Pure(LiteralNode(1))).infer()(GlobalTypes.empty)): Node}\]"
         case Library.Concat(l, r) if concatOperator.isDefined =>
           b"\($l${concatOperator.get}$r\)"
         case Library.User() if !capabilities.contains(RelationalProfile.capabilities.functionUser) =>

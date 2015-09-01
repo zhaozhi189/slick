@@ -1,9 +1,12 @@
 package slick.compiler
 
+import slick.ast.TypeUtil.typeToTypeUtil
+import slick.ast.Util.nodeToNodeOps
+
 import scala.collection.immutable.HashMap
 import slick.SlickException
 import slick.util._
-import slick.ast.{SymbolScope, SymbolNamer, Node}
+import slick.ast._
 import org.slf4j.LoggerFactory
 
 /** An immutable, stateless query compiler consisting of a series of phases */
@@ -76,6 +79,7 @@ class QueryCompiler(val phases: Vector[Phase]) extends Logging {
   }
 
   protected[this] def runPhase(p: Phase, state: CompilerState): CompilerState = state.symbolNamer.use {
+    val snapshot = state.global.snapshot
     val s2 = p(state)
     if(s2.tree ne state.tree) {
       if(GlobalConfig.detectRebuild && s2.tree == state.tree) {
@@ -87,7 +91,29 @@ class QueryCompiler(val phases: Vector[Phase]) extends Logging {
         (new VerifyTypes(after = Some(p))).apply(s2)
     }
     else logger.debug("After phase "+p.name+": (no change)")
-    s2
+    if(logger.isDebugEnabled && (s2.global != snapshot)) {
+      val symbols = (snapshot.symbols ++ s2.global.symbols).toSeq.sortBy(_.toString)
+      class Diff(t: TypeSymbol) extends DumpInfo(t.toString, attrInfo = s2.global.get(t).map(_.toString).getOrElse("-")) {
+        val mark = snapshot.get(t) != s2.global.get(t)
+      }
+      val diff = DumpInfo("Diff", children = symbols.map(ts => ("", new Diff(ts))))
+      logger.debug("Updated global types:", diff, mark = {
+        case d: Diff => d.mark
+        case _ => false
+      })
+    }
+    if(GlobalConfig.verifyTypes) { //TODO
+      val inTree = s2.tree.collectAll[NominalType] { case n => n.peekType.collect[NominalType] { case t: NominalType => t } }.toSeq
+      inTree.foreach { n =>
+        val str = s2.global.get(n.sym).getOrElse(UnassignedType)
+        if(str != n.structuralView) throw new SlickException("Structural views for "+n.sym+" do not match\n   local: "+n.structuralView+"\n  global: "+str)
+      }
+      val usedSyms = inTree.map(_.sym).toSet
+      val unusedSyms = s2.global.symbols -- usedSyms
+      if(unusedSyms.nonEmpty)
+        throw new SlickException("Unused TypeSymbols in global symbol table: "+unusedSyms.mkString(", "))
+    }
+    s2.copy(global = s2.global.freeze)
   }
 
   protected[this] def detectRebuiltLeafs(n1: Node, n2: Node): Set[RefId[Dumpable]] = {
@@ -209,11 +235,11 @@ class CompilerState private (val compiler: QueryCompiler,
                              val tree: Node,
                              state: HashMap[String, Any],
                              /** The global symbol table */
-                             val global: SymbolScope,
+                             val global: GlobalTypes,
                              /** Whether or not the AST should be well-typed after every phase */
                              val wellTyped: Boolean) {
   def this(compiler: QueryCompiler, tree: Node) =
-    this(compiler, new SymbolNamer("s", "t"), tree, new HashMap, SymbolScope.empty, false)
+    this(compiler, new SymbolNamer("s", "t"), tree, new HashMap, GlobalTypes.empty, false)
 
   /** Get the phase state for a phase */
   def get[P <: Phase](p: P): Option[p.State] = state.get(p.name).asInstanceOf[Option[p.State]]
@@ -226,8 +252,8 @@ class CompilerState private (val compiler: QueryCompiler,
   def map(f: Node => Node) = copy(tree = f(tree))
 
   /** Return a new `CompilerState` with modified data */
-  def copy(tree: Node = tree, globals: SymbolScope = global, wellTyped: Boolean = wellTyped): CompilerState =
-    new CompilerState(compiler, symbolNamer, tree, state, globals, wellTyped)
+  def copy(tree: Node = tree, global: GlobalTypes = global, wellTyped: Boolean = wellTyped): CompilerState =
+    new CompilerState(compiler, symbolNamer, tree, state, global, wellTyped)
 
   implicit def implicitGlobal = global
 }

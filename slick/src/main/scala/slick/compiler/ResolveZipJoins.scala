@@ -24,18 +24,21 @@ class ResolveZipJoins(rownumStyle: Boolean = false) extends Phase {
     import state.implicitGlobal
     val n2 = state.tree.replace({
       case b @ Bind(s1,
-          Join(_, _, Bind(ls, from, Pure(StructNode(defs), _)), RangeFrom(offset), JoinType.Zip, LiteralNode(true)),
+          Join(_, _, Bind(ls, from, Pure(StructNode(defs), ts)), RangeFrom(offset), JoinType.Zip, LiteralNode(true)),
           p) =>
         logger.debug("Transforming zipWithIndex:", b)
         val b2 = transformZipWithIndex(s1, ls, from, defs, offset, p)
+        state.global -= ts
         logger.debug("Transformed zipWithIndex:", b2)
         b2
       case b @ Bind(s1, Join(jlsym, jrsym,
-          l @ Bind(_, _, Pure(StructNode(ldefs), _)),
-          r @ Bind(_, _, Pure(StructNode(rdefs), _)),
+          l @ Bind(_, _, Pure(StructNode(ldefs), lts)),
+          r @ Bind(_, _, Pure(StructNode(rdefs), rts)),
           JoinType.Zip, LiteralNode(true)), sel) =>
         logger.debug("Transforming zip:", b)
         val b2 = transformZip(s1, jlsym, jrsym, l, ldefs, r, rdefs, sel)
+        state.global -= lts
+        state.global -= rts
         logger.debug("Transformed zip:", b2)
         b2
     }, bottomUp = true).infer()
@@ -47,7 +50,7 @@ class ResolveZipJoins(rownumStyle: Boolean = false) extends Phase {
     * into an equivalent mapping operation using `RowNum`. This method can be overridden in
     * subclasses to implement non-standard translations. */
   def transformZipWithIndex(s1: TermSymbol, ls: TermSymbol, from: Node,
-                            defs: ConstArray[(TermSymbol, Node)], offset: Long, p: Node)(implicit global: SymbolScope): Node = {
+                            defs: ConstArray[(TermSymbol, Node)], offset: Long, p: Node)(implicit global: GlobalTypes): Node = {
     val idxSym = new AnonSymbol
     val idxExpr =
       if(offset == 1L) RowNumber()
@@ -65,7 +68,7 @@ class ResolveZipJoins(rownumStyle: Boolean = false) extends Phase {
     * join into `zipWithIndex` and then using `transformZipWithIndex` on those. */
   def transformZip(s1: TermSymbol, jlsym: TermSymbol, jrsym: TermSymbol,
                    l: Bind, ldefs: ConstArray[(TermSymbol, Node)],
-                   r: Bind, rdefs: ConstArray[(TermSymbol, Node)], sel: Node)(implicit global: SymbolScope): Node = {
+                   r: Bind, rdefs: ConstArray[(TermSymbol, Node)], sel: Node)(implicit global: GlobalTypes): Node = {
     val lmap = ldefs.iterator.map(t => (t._1, new AnonSymbol)).toMap
     val rmap = rdefs.iterator.map(t => (t._1, new AnonSymbol)).toMap
     val lisym, risym, l2sym, r2sym = new AnonSymbol

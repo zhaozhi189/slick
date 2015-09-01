@@ -12,7 +12,7 @@ class ForceOuterBinds extends Phase {
 
   def apply(state: CompilerState): CompilerState = state.map(apply(_)(state.global))
 
-  def apply(n: Node)(implicit global: SymbolScope): Node = {
+  def apply(n: Node)(implicit global: GlobalTypes): Node = {
     val t = n.nodeType.structuralRec
     val n2 =
       if(!t.isInstanceOf[CollectionType]) First(wrap(Pure(n)))

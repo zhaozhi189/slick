@@ -2,9 +2,8 @@ package slick.ast
 
 import Util._
 import slick.SlickException
-import slick.util.ConstArray
-import scala.collection.immutable
-import scala.collection.mutable.HashMap
+import slick.util.{SlickLogger, DumpInfo, Dumpable, ConstArray}
+import scala.collection.{mutable, immutable}
 import scala.util.DynamicVariable
 
 /** A symbol which can be used in the AST. It can be either a TypeSymbol or a TermSymbol. */
@@ -50,7 +49,7 @@ class AnonSymbol extends TermSymbol {
   def name = "@"+System.identityHashCode(this)
 }
 
-/** A Node which introduces Symbols. */
+/** A Node which introduces TermSymbols. */
 trait DefNode extends Node {
   def generators: ConstArray[(TermSymbol, Node)]
   protected[this] def rebuildWithSymbols(gen: ConstArray[TermSymbol]): Node
@@ -73,10 +72,15 @@ trait DefNode extends Node {
   }
 }
 
+/** A Node which introduces a TypeSymbol. */
+trait TypeGenerator {
+  def identity: TypeSymbol
+}
+
 /** Provides names for symbols */
 class SymbolNamer(treeSymbolPrefix: String, typeSymbolPrefix: String, parent: Option[SymbolNamer] = None) {
   private var curSymbolId = 1
-  private val map = new HashMap[Symbol, String]
+  private val map = new mutable.HashMap[Symbol, String]
 
   def create(prefix: String) = {
     curSymbolId += 1
@@ -113,30 +117,91 @@ object SymbolNamer {
   }
 }
 
-/** An immutable symbol table that can resolve a Type by TermSymbol (for local definitions) or
-  * TypeSymbol (for global NominalTypes). */
-class SymbolScope(val _map: Map[Symbol, Type]) extends AnyVal {
-  def + (st: (Symbol, Type)): SymbolScope = new SymbolScope(_map + st)
-  def apply(s: Symbol): Type = _map(s)
-  def get(s: Symbol): Option[Type] = _map.get(s)
+/** An immutable symbol table that can resolve a Type by TermSymbol (for local definitions). */
+class SymbolScope(map: Map[TermSymbol, Type]) extends Dumpable {
+  def + (st: (TermSymbol, Type)): SymbolScope = new SymbolScope(map + st)
+  def ++ (t: Traversable[(TermSymbol, Type)]): SymbolScope = new SymbolScope(map ++ t)
+  def apply(s: TermSymbol): Type = map(s)
+  def get(s: TermSymbol): Option[Type] = map.get(s)
+  def getDumpInfo: DumpInfo = DumpInfo("SymbolScope", children =
+    map.toSeq.map { case (ts, t) => (ts.toString, new DumpInfo(t.toString)) }.sortBy(_._1))
 }
 
 object SymbolScope {
-  /** The empty SymbolScope to which more definitions can be added */
-  val empty: SymbolScope = new SymbolScope(Map.empty)
+  /** Create a SymbolScope with the given definitions */
+  def apply(ts: (TermSymbol, Type)*) = new SymbolScope(ts.toMap)
 
-  /** A special empty SymbolScope that cannot be queried or have TypeSymbols added to it. This is
-    * used for inferring types in well isolated parts of an AST where you know (and want to
-    * enforce) that no global types need to be used. */
-  val local: SymbolScope = new SymbolScope(new immutable.HashMap[Symbol, Type] {
-    override def + [B1 >: Type](kv: (Symbol, B1)): immutable.HashMap[Symbol, B1] = kv._1 match {
-      case _: TypeSymbol =>
-        throw new SlickException("SymbolScope.local cannot add new TypeSymbols")
-      case _ => super.+(kv)
-    }
-    override def apply(s: Symbol): Type =
-      throw new SlickException("SymbolScope.local cannot resolve Symbols")
-    override def get(s: Symbol): Option[Type] =
-      throw new SlickException("SymbolScope.local cannot resolve Symbols")
-  })
+  /** An empty SymbolScope to which more definitions can be added */
+  val empty: SymbolScope = new SymbolScope(Map.empty) {
+    override def getDumpInfo = super.getDumpInfo.copy(name = "SymbolScope.empty")
+  }
+}
+
+/** A mutable symbol table for global type definitions. */
+class GlobalTypes private (private var map: mutable.HashMap[TypeSymbol, Type]) extends Dumpable {
+  private var frozen = false
+  private[this] var cow = true
+
+  private[this] def writableMap: mutable.HashMap[TypeSymbol, Type] = {
+    if(frozen) throw new SlickException("Frozen GlobalTypes cannot be modified")
+    if(cow) { map = map.clone(); cow = false }
+    map
+  }
+
+  def += (st: (TypeSymbol, Type)): Unit = writableMap += st
+  def ++= (t: Traversable[(TypeSymbol, Type)]): Unit = writableMap ++= t
+  def -= (s: TypeSymbol): Unit = {
+    GlobalTypes.logger.debug("Removing global TypeSymbol: "+s)
+    writableMap -= s
+  }
+  def --= (t: Traversable[TypeSymbol]): Unit = {
+    GlobalTypes.logger.debug("Removing global TypeSymbols: "+t.mkString(", "))
+    writableMap --= t
+  }
+  def apply(s: TypeSymbol): Type = map(s)
+  def get(s: TypeSymbol): Option[Type] = map.get(s)
+  def symbols: collection.Set[TypeSymbol] = map.keySet
+
+  def getDumpInfo: DumpInfo =
+    DumpInfo("GlobalTypes", children = map.toSeq
+      .map { case (ts, t) => (ts.toString, new DumpInfo(t.toString)) }.sortBy(_._1))
+
+  /** Freeze this object (disallowing any future modification) and return a new, mutable
+    * GlobalTypes instance with all its definitions. */
+  def freeze: GlobalTypes = { frozen = true; new GlobalTypes(map) }
+
+  /** Return a frozen snapshot of this object. */
+  def snapshot: GlobalTypes = {
+    cow = true
+    val g = new GlobalTypes(map)
+    g.frozen = true
+    g
+  }
+
+  override def hashCode() = map.hashCode()
+
+  override def equals(o: Any) = o match {
+    case o: GlobalTypes => map == o.map
+    case _ => false
+  }
+}
+
+object GlobalTypes {
+  private lazy val logger = SlickLogger[GlobalTypes]
+  private[this] def emptyMap = new mutable.HashMap[TypeSymbol, Type]
+
+  /** Create an empty GlobalTypes to which more definitions can be added */
+  def empty: GlobalTypes = new GlobalTypes(emptyMap)
+
+  /** An immutable empty GlobalTypes which throws an Exception when you try to add or resolve
+    * a symbol. This can be used for isolated local type-checking where you know that global
+    * types are not needed. */
+  val local: GlobalTypes = new GlobalTypes(emptyMap) {
+    private[this] def fail = throw new SlickException("GlobalTypes.local")
+    override def += (st: (TypeSymbol, Type)): Unit = fail
+    override def ++= (t: Traversable[(TypeSymbol, Type)]): Unit = fail
+    override def apply(s: TypeSymbol): Type = fail
+    override def get(s: TypeSymbol): Option[Type] = fail
+    override def getDumpInfo: DumpInfo = super.getDumpInfo.copy(name = "GlobalTypes.local")
+  }
 }

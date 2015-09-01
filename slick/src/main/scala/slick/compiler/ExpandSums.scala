@@ -18,7 +18,7 @@ class ExpandSums extends Phase {
   val DiscNone = LiteralNode(ScalaBaseType.optionDiscType.optionType, None)
 
   /** Perform the sum expansion on a Node */
-  def tr(tree: Node, oldDiscCandidates: Set[(TypeSymbol, List[TermSymbol])])(implicit global: SymbolScope): Node = {
+  def tr(tree: Node, oldDiscCandidates: Set[(TypeSymbol, List[TermSymbol])])(implicit global: GlobalTypes): Node = {
     val discCandidates = oldDiscCandidates ++ (tree match {
       case Filter(_, _, p) => collectDiscriminatorCandidates(p)
       case Bind(_, j: Join, _) => collectDiscriminatorCandidates(j.on)
@@ -91,7 +91,7 @@ class ExpandSums extends Phase {
   }
 
   /** Translate an Option-extended left outer, right outer or full outer join */
-  def translateJoin(bind: Bind, discCandidates: Set[(TypeSymbol, List[TermSymbol])])(implicit global: SymbolScope): Bind = {
+  def translateJoin(bind: Bind, discCandidates: Set[(TypeSymbol, List[TermSymbol])])(implicit global: GlobalTypes): Bind = {
     logger.debug("translateJoin", bind)
     val Bind(bsym, (join @ Join(lsym, rsym, left :@ CollectionType(_, leftElemType), right :@ CollectionType(_, rightElemType), jt, on)) :@ CollectionType(cons, elemType), pure) = bind
     val lComplex = !leftElemType.structural.isInstanceOf[AtomicType]
@@ -202,7 +202,7 @@ class ExpandSums extends Phase {
   }) :@ tpe
 
   /** Perform the sum expansion on a Type */
-  def trType(tpe: Type): Type = {
+  def trType(tpe: Type)(implicit global: GlobalTypes): Type = {
     def f(tpe: Type): Type = tpe.mapChildren(f) match {
       case t @ OptionType.Primitive(_) => t
       case OptionType(ch) => ProductType(ConstArray(ScalaBaseType.optionDiscType.optionType, toOptionColumns(ch)))
@@ -210,6 +210,10 @@ class ExpandSums extends Phase {
     }
     val tpe2 = f(tpe)
     logger.debug(s"Translated type: $tpe -> $tpe2")
+    tpe2 match {
+      case NominalType(ts, exp) => global += ts -> exp
+      case _ =>
+    }
     tpe2
   }
 
@@ -222,7 +226,7 @@ class ExpandSums extends Phase {
   }
 
   /** Fuse unnecessary Option operations */
-  def fuse(n: Node)(implicit global: SymbolScope): Node = n match {
+  def fuse(n: Node)(implicit global: GlobalTypes): Node = n match {
     // Option.map
     case IfThenElse(ConstArray(Library.==(disc, Disc1), ProductNode(ConstArray(Disc1, map)), ProductNode(ConstArray(DiscNone, _)))) =>
       ProductNode(ConstArray(disc, map)).infer()

@@ -506,7 +506,7 @@ class NewQuerySemanticsTest extends AsyncTest[RelationalTestDB] {
     val q18 = as.joinLeft(as).on { case (a1, a2) => a1.id === a2.id }.filter { case (a1, a2) => a1.id === 3 }.map { case (a1, a2) => a2 }
     val q19 = as.joinLeft(as).on { case (a1, a2) => a1.id === a2.id }.joinLeft(as).on { case ((_, a2), a3) => a2.map(_.b) === a3.b }.map(_._2)
 
-    if(tdb.driver == H2Driver) {
+    /*if(tdb.driver == H2Driver) {
       assertNesting(q1, 1)
       assertNesting(q2, 1)
       assertNesting(q3, 1)
@@ -534,7 +534,7 @@ class NewQuerySemanticsTest extends AsyncTest[RelationalTestDB] {
       assertNesting(q17, 2)
       assertNesting(q18, 1)
       assertNesting(q19, 1)
-    }
+    }*/
 
     for {
       _ <- as.schema.create

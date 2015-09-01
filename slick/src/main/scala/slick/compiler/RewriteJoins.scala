@@ -15,9 +15,10 @@ class RewriteJoins extends Phase {
 
   def apply(state: CompilerState) = state.map(tr(_)(state.global))
 
-  def tr(n: Node)(implicit global: SymbolScope): Node = n.mapChildren(tr, keepType = true) match {
-    case n @ Bind(s1, f1, Bind(s2, Pure(StructNode(ConstArray()), _), select)) =>
+  def tr(n: Node)(implicit global: GlobalTypes): Node = n.mapChildren(tr, keepType = true) match {
+    case n @ Bind(s1, f1, Bind(s2, Pure(StructNode(ConstArray()), ts), select)) =>
       logger.debug("Eliminating unnecessary Bind from:", Ellipsis(n, List(0), List(1, 1)))
+      global -= ts
       Bind(s1, f1, select) :@ n.nodeType
 
     case Bind(s1, f1, Bind(s2, Filter(s3, f2, pred), select)) =>
@@ -84,11 +85,12 @@ class RewriteJoins extends Phase {
       logger.debug("Unnested Bind in:", Ellipsis(res, List(0, 0)))
       flattenAliasingMap(res)
 
-    case n @ Bind(s1, p @ Pure(f1, _), sel1) if !f1.isInstanceOf[Aggregate] =>
+    case n @ Bind(s1, p @ Pure(f1, ts1), sel1) if !f1.isInstanceOf[Aggregate] =>
       logger.debug("Inlining Pure 'from' in:", n)
       val res = Bind(s1, Pure(StructNode(ConstArray.empty)).infer(), sel1.replace({
         case FwdPath(s :: rest) if s == s1 => rest.foldLeft(f1) { case (n, s) => n.select(s) }
       }, keepType = true)) :@ n.nodeType
+      global -= ts1
       logger.debug("Inlined Pure 'from' in:", res)
       res
 
@@ -98,7 +100,7 @@ class RewriteJoins extends Phase {
   }
 
   /** Hoist `Filter` nodes in `Join` generators into join predicates. */
-  def hoistFilters(j: Join)(implicit global: SymbolScope): (Join, Set[TypeSymbol]) = {
+  def hoistFilters(j: Join)(implicit global: GlobalTypes): (Join, Set[TypeSymbol]) = {
     def hoist(ts: TermSymbol, n: Node): (Node, Option[Node], Set[TypeSymbol]) = (n match {
       case b: Bind => hoistFilterFromBind(b)
       case n => (n, Set.empty[TypeSymbol])
@@ -124,7 +126,7 @@ class RewriteJoins extends Phase {
   /** Recursively hoist `Filter` out of of `Bind(_, Filter, Pure(StructNode))`. Returns the possibly
     * modified tree plus a set of invalidated TypeSymbols (non-empty if additional columns
     * have to be added to the base projection for the filters). */
-  def hoistFilterFromBind(b: Bind)(implicit global: SymbolScope): (Node, Set[TypeSymbol]) = {
+  def hoistFilterFromBind(b: Bind)(implicit global: GlobalTypes): (Node, Set[TypeSymbol]) = {
     (b.from match {
       case b2: Bind => hoistFilterFromBind(b2)
       case n => (n, Set.empty[TypeSymbol])
@@ -161,7 +163,7 @@ class RewriteJoins extends Phase {
     * paths into it.
     *
     * TODO: If the remainder of the mapping Bind is purely aliasing, eliminate it entirely. */
-  def eliminateIllegalRefs(j: Join, illegal: Set[TermSymbol], outsideRef: TermSymbol)(implicit global: SymbolScope): (Join, Map[List[TermSymbol], Node]) = {
+  def eliminateIllegalRefs(j: Join, illegal: Set[TermSymbol], outsideRef: TermSymbol)(implicit global: GlobalTypes): (Join, Map[List[TermSymbol], Node]) = {
     logger.debug("Trying to eliminate illegal refs ["+illegal.mkString(", ")+"] from:", j)
     // Pull defs to one of `illegal` out of `sn`, creating required refs to `ok` instead
     def pullOut(sn: StructNode, ok: TermSymbol, illegal: Set[TermSymbol]): (StructNode, Map[TermSymbol, Node]) = {
@@ -223,7 +225,7 @@ class RewriteJoins extends Phase {
     * of `on2` refer to `s1`, merge them into `on1`. Nested joins are processed recursively. The
     * same is done in the opposite direction, pushing predicates down into sub-joins if they only
     * reference one side of the join. */
-  def rearrangeJoinConditions(j: Join)(implicit global: SymbolScope): Join = j match {
+  def rearrangeJoinConditions(j: Join)(implicit global: GlobalTypes): Join = j match {
     case Join(s1, s2, _, j2a @ Join(_, _, _, _, JoinType.Inner, _), JoinType.Inner, on1) =>
       val j2b = rearrangeJoinConditions(j2a)
       val (on1Down, on1Keep) = splitConjunctions(on1).partition(p => hasRefTo(p, Set(s2)) && !hasRefTo(p, Set(s1)))
@@ -251,7 +253,7 @@ class RewriteJoins extends Phase {
     * into a single Bind, provided that each element of either p1 or p2 contains not more than one path.
     * This transformation is not required for the correctness of join rewriting but it keeps the
     * tree smaller to speed up subsequent phases. */
-  def flattenAliasingMap(b: Bind)(implicit global: SymbolScope): Bind = b match {
+  def flattenAliasingMap(b: Bind)(implicit global: GlobalTypes): Bind = b match {
     case Bind(s1, Bind(s2, f, Pure(StructNode(p1), ts1)), Pure(StructNode(p2), ts2)) =>
       def isAliasing(s: ConstArray[(TermSymbol, Node)]) = s.forall { case (_, n) =>
         n.collect({ case Path(_) => true }, stopOnMatch = true).length <= 1
@@ -260,6 +262,7 @@ class RewriteJoins extends Phase {
       if(a1 || isAliasing(p2)) {
         logger.debug(s"Bind(${if(a1) s1 else s2}) is aliasing. Merging Bind($s1, Bind($s2)) to Bind($s2)")
         val m = p1.iterator.toMap
+        global -= ts1
         Bind(s2, f, Pure(StructNode(p2.map {
           case (f1, n) => (f1, n.replace({
             case Select(Ref(s), f2) if s == s1 => m(f2)

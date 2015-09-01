@@ -48,19 +48,19 @@ final case class Comprehension(sym: TermSymbol, from: Node, select: Node, where:
   def generators = ConstArray((sym, from))
   override def getDumpInfo = super.getDumpInfo.copy(mainInfo = "")
   protected[this] def rebuildWithSymbols(gen: ConstArray[TermSymbol]) = copy(sym = gen.head)
-  def withInferredType(scope: SymbolScope, typeChildren: Boolean): Self = {
+  def withInferredType(scope: SymbolScope, typeChildren: Boolean)(implicit global: GlobalTypes): Self = {
     // Assign type to "from" Node and compute the resulting scope
-    val f2 = from.infer(typeChildren)(scope)
+    val f2 = from.infer(scope, typeChildren)
     val genScope = scope + (sym -> f2.nodeType.asCollectionType.elementType)
     // Assign types to "select", "where", "groupBy", "orderBy", "having", "fetch" and "offset" Nodes
-    val s2 = select.infer(typeChildren)(genScope)
-    val w2 = mapOrNone(where)(_.infer(typeChildren)(genScope))
-    val g2 = mapOrNone(groupBy)(_.infer(typeChildren)(genScope))
+    val s2 = select.infer(genScope, typeChildren)
+    val w2 = mapOrNone(where)(_.infer(genScope, typeChildren))
+    val g2 = mapOrNone(groupBy)(_.infer(genScope, typeChildren))
     val o = orderBy.map(_._1)
-    val o2 = o.endoMap(_.infer(typeChildren)(genScope))
-    val h2 = mapOrNone(having)(_.infer(typeChildren)(genScope))
-    val fetch2 = mapOrNone(fetch)(_.infer(typeChildren)(genScope))
-    val offset2 = mapOrNone(offset)(_.infer(typeChildren)(genScope))
+    val o2 = o.endoMap(_.infer(genScope, typeChildren))
+    val h2 = mapOrNone(having)(_.infer(genScope, typeChildren))
+    val fetch2 = mapOrNone(fetch)(_.infer(genScope, typeChildren))
+    val offset2 = mapOrNone(offset)(_.infer(genScope, typeChildren))
     // Check if the nodes changed
     val same = (f2 eq from) && (s2 eq select) && w2.isEmpty && g2.isEmpty && (o2 eq o) && h2.isEmpty && fetch2.isEmpty && offset2.isEmpty
     val newType =

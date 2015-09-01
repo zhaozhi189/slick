@@ -53,13 +53,14 @@ trait MemoryQueryingDriver extends BasicDriver with MemoryQueryingProfile { driv
 
     def compileServerSideAndMapping(serverSide: Node, mapping: Option[Node], state: CompilerState) = (serverSide, mapping.map(compileMapping))
 
-    def retype(n: Node)(implicit global: SymbolScope): Node = {
+    def retype(n: Node)(implicit global: GlobalTypes): Node = {
       val n2 = transformSimpleGrouping(n)
       val n3 = n2.mapChildren(retype, keepType = true)
+      global --= global.symbols
       n3 :@ trType(n3.nodeType)
     }
 
-    def transformSimpleGrouping(n: Node)(implicit global: SymbolScope) = n match {
+    def transformSimpleGrouping(n: Node)(implicit global: GlobalTypes) = n match {
       case Bind(gen, g: GroupBy, p @ Pure((_: ProductNode | _: StructNode), _)) =>
         val p2 = transformCountAll(gen, p)
         if(p2 eq p) n else Bind(gen, g, p2).infer(typeChildren = true)

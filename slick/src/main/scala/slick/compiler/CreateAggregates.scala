@@ -12,7 +12,7 @@ class CreateAggregates extends Phase {
 
   def apply(state: CompilerState) = state.map(transform(_)(state.global))
 
-  def transform(tree: Node)(implicit global: SymbolScope): Node = tree.replace({
+  def transform(tree: Node)(implicit global: GlobalTypes): Node = tree.replace({
     case n @ Apply(f: AggregateFunctionSymbol, ConstArray(from)) =>
       logger.debug("Converting aggregation function application", n)
       val CollectionType(_, elType @ Type.Structural(StructType(els))) = from.nodeType
@@ -30,7 +30,9 @@ class CreateAggregates extends Phase {
         logger.debug("Lifting aggregates into join in:", n)
         logger.debug("New mapping with temporary refs:", sel2)
         val sources = (from1 match {
-          case Pure(StructNode(ConstArray()), _) => Vector.empty[(TermSymbol, Node)]
+          case Pure(StructNode(ConstArray()), ts) =>
+            global -= ts
+            Vector.empty[(TermSymbol, Node)]
           case _ => Vector(s1 -> from1)
         }) ++ temp.map { case (s, n) => (s, Pure(n)) }
         val from2 = sources.init.foldRight(sources.last._2) {
@@ -48,8 +50,8 @@ class CreateAggregates extends Phase {
             }.toMap
         }
         logger.debug("Replacement paths: " + repl)
-        val scope = global + (s1 -> from2.nodeType.asCollectionType.elementType)
-        val replNodes = repl.mapValues(ss => FwdPath(ss).infer()(scope))
+        val scope = SymbolScope(s1 -> from2.nodeType.asCollectionType.elementType)
+        val replNodes = repl.mapValues(ss => FwdPath(ss).infer(scope))
         logger.debug("Replacement path nodes: ", StructNode(ConstArray.from(replNodes)))
         val sel3 = sel2.replace({ case n @ Ref(s) => replNodes.getOrElse(s, n) }, keepType = true)
         val n2 = Bind(s1, from2, Pure(sel3, ts1)).infer()
@@ -59,7 +61,7 @@ class CreateAggregates extends Phase {
   }, keepType = true, bottomUp = true)
 
   /** Recursively inline mapping Bind calls under an Aggregate */
-  def inlineMap(a: Aggregate)(implicit global: SymbolScope): Aggregate = a.from match {
+  def inlineMap(a: Aggregate)(implicit global: GlobalTypes): Aggregate = a.from match {
     case Bind(s1, f1, Pure(StructNode(defs1), ts1)) =>
       logger.debug("Inlining mapping Bind under Aggregate", a)
       val defs1M = defs1.iterator.toMap
@@ -68,6 +70,7 @@ class CreateAggregates extends Phase {
           rest.foldLeft(defs1M(f)) { case (n, s) => n.select(s) }.infer()
       }, keepType = true)
       val a2 = Aggregate(s1, f1, sel) :@ a.nodeType
+      global -= ts1
       logger.debug("Inlining mapping Bind under Aggregate", a2)
       inlineMap(a2)
     case _ => a
@@ -75,7 +78,7 @@ class CreateAggregates extends Phase {
 
   /** Find all scalar Aggregate calls in a sub-tree that do not refer to the given Symbol,
     * and replace them by temporary Refs. */
-  def liftAggregates(n: Node, outer: TermSymbol)(implicit global: SymbolScope): (Node, Map[TermSymbol, Aggregate]) = n match {
+  def liftAggregates(n: Node, outer: TermSymbol)(implicit global: GlobalTypes): (Node, Map[TermSymbol, Aggregate]) = n match {
     case a @ Aggregate(s1, f1, sel1) =>
       if(a.findNode {
           case n: PathElement => n.sym == outer

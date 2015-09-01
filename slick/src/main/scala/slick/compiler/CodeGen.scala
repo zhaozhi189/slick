@@ -1,8 +1,10 @@
 package slick.compiler
 
-import slick.ast.TypeUtil.:@
+import slick.ast.TypeUtil._
 import slick.ast._
 import slick.util.SlickLogger
+
+import scala.collection.mutable
 
 /** A standard skeleton for a code generator phase. */
 abstract class CodeGen extends Phase {
@@ -12,8 +14,9 @@ abstract class CodeGen extends Phase {
 
   def apply(state: CompilerState): CompilerState = state.map(n => apply(n, state))
 
-  def apply(node: Node, state: CompilerState): Node =
-    ClientSideOp.mapResultSetMapping(node, keepType = true) { rsm =>
+  def apply(tree: Node, state: CompilerState): Node = {
+    val needed = new mutable.HashSet[TypeSymbol]
+    val tree2 = ClientSideOp.mapResultSetMapping(state.tree, keepType = true) { rsm =>
       var nmap: Option[Node] = None
       var compileMap: Option[Node] = Some(rsm.map)
 
@@ -29,8 +32,13 @@ abstract class CodeGen extends Phase {
         logger.debug("Compiled server-side to:", nss)
         nss
       }
+      needed ++= nfrom.nodeType.collect { case NominalType(ts, _) => ts }.toSeq
+      needed ++= nmap.get.nodeType.collect { case NominalType(ts, _) => ts }.toSeq
       rsm.copy(from = nfrom, map = nmap.get) :@ rsm.nodeType
     }
+    state.global --= (state.global.symbols -- needed)
+    tree2
+  }
 
   def compileServerSideAndMapping(serverSide: Node, mapping: Option[Node], state: CompilerState): (Node, Option[Node])
 

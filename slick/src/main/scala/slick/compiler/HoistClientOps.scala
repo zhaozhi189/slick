@@ -27,6 +27,7 @@ class HoistClientOps extends Phase {
         val rsm2 = rsm.copy(from = bind2, map = rsm.map.replace {
           case Select(Ref(s), f) if s == rsm.generator => oldDefsM(f)
         }).infer()
+        state.global -= ts2
         logger.debug("New ResultSetMapping:", Ellipsis(rsm2, List(0, 0)))
         rsm2
       case _ =>
@@ -36,19 +37,20 @@ class HoistClientOps extends Phase {
   })
 
   /** Pull Bind nodes up to the top level through Filter and CollectionCast. */
-  def shuffle(n: Node)(implicit global: SymbolScope): Node = n match {
+  def shuffle(n: Node)(implicit global: GlobalTypes): Node = n match {
     case n @ Bind(s1, from1, sel1) =>
       shuffle(from1) match {
         // Merge nested Binds
-        case bind2 @ Bind(s2, from2, sel2 @ Pure(StructNode(elems2), ts2)) if !from2.isInstanceOf[GroupBy] =>
+        case bind2 @ Bind(s2, from2, Pure(StructNode(elems2), ts2)) if !from2.isInstanceOf[GroupBy] =>
           logger.debug("Merging top-level Binds", Ellipsis(n.copy(from = bind2), List(0,0)))
           val defs = elems2.iterator.toMap
+          global -= ts2
           bind2.copy(select = sel1.replace {
             case Select(Ref(s), f) if s == s1 => defs(f)
           }).infer()
         // Hoist operations out of the non-Option sides of inner and left and right outer joins
-        case from2 @ Join(sl1, sr1, bl @ Bind(bsl, lfrom, Pure(StructNode(ldefs), tsl)),
-                                    br @ Bind(bsr, rfrom, Pure(StructNode(rdefs), tsr)),
+        case from2 @ Join(sl1, sr1, bl @ Bind(bsl, lfrom, Pure(StructNode(ldefs), lts)),
+                                    br @ Bind(bsr, rfrom, Pure(StructNode(rdefs), rts)),
                           jt, on1) if jt != JoinType.Outer =>
           logger.debug("Hoisting operations from Join:", Ellipsis(from2, List(0, 0), List(1, 0)))
           val (bl2: Bind, lrepl: Map[TermSymbol, (Node => Node, AnonSymbol)]) = if(jt != JoinType.Right) {
@@ -57,6 +59,7 @@ class HoistClientOps extends Phase {
             val newDefsM = hoisted.iterator.map { case (ts, n, (n2, wrap)) => (n2, new AnonSymbol) }.toMap
             logger.debug("New defs: "+newDefsM)
             val bl2 = bl.copy(select = Pure(StructNode(ConstArray.from(newDefsM.map(_.swap))))).infer()
+            global -= lts
             logger.debug("Translated left join side:", Ellipsis(bl2, List(0)))
             val repl = hoisted.iterator.map { case (s, _, (n2, wrap)) => (s, (wrap, newDefsM(n2))) }.toMap
             (bl2, repl)
@@ -67,6 +70,7 @@ class HoistClientOps extends Phase {
             val newDefsM = hoisted.iterator.map { case (ts, n, (n2, wrap)) => (n2, new AnonSymbol) }.toMap
             logger.debug("New defs: "+newDefsM)
             val br2 = br.copy(select = Pure(StructNode(ConstArray.from(newDefsM.map(_.swap))))).infer()
+            global -= rts
             logger.debug("Translated right join side:", Ellipsis(br2, List(0)))
             val repl = hoisted.iterator.map { case (s, _, (n2, wrap)) => (s, (wrap, newDefsM(n2))) }.toMap
             (br2, repl)
@@ -104,7 +108,7 @@ class HoistClientOps extends Phase {
     //TODO: Identity mappings are reversible, to we can safely allow them for any kind of conversion.
     case n @ CollectionCast(from1 :@ CollectionType(cons1, _), cons2) if !cons1.isUnique || cons2.isUnique =>
       shuffle(from1) match {
-        case Bind(s1, bfrom1, sel1 @ Pure(StructNode(elems1), ts1)) if !bfrom1.isInstanceOf[GroupBy] =>
+        case Bind(s1, bfrom1, sel1 @ Pure(StructNode(elems1), _)) if !bfrom1.isInstanceOf[GroupBy] =>
           val res = Bind(s1, CollectionCast(bfrom1, cons2), sel1.replace { case Ref(s) if s == s1 => Ref(s) }).infer()
           logger.debug("Pulled Bind out of CollectionCast", Ellipsis(res, List(0,0)))
           res
@@ -113,7 +117,7 @@ class HoistClientOps extends Phase {
 
     case n @ Filter(s1, from1, pred1) =>
       shuffle(from1) match {
-        case from2 @ Bind(bs1, bfrom1, sel1 @ Pure(StructNode(elems1), ts1)) if !bfrom1.isInstanceOf[GroupBy] =>
+        case from2 @ Bind(bs1, bfrom1, sel1 @ Pure(StructNode(elems1), _)) if !bfrom1.isInstanceOf[GroupBy] =>
           logger.debug("Pulling Bind out of Filter", Ellipsis(n.copy(from = from2), List(0, 0)))
           val s3 = new AnonSymbol
           val defs = elems1.iterator.toMap
@@ -150,7 +154,7 @@ class HoistClientOps extends Phase {
   }
 
   /** Rewrite remaining `GetOrElse` operations in the server-side tree into conditionals. */
-  def rewriteDBSide(tree: Node)(implicit global: SymbolScope): Node = tree.replace({
+  def rewriteDBSide(tree: Node)(implicit global: GlobalTypes): Node = tree.replace({
     case GetOrElse(OptionApply(ch), _) => ch
     case n @ GetOrElse(ch :@ OptionType(tpe), default) =>
       logger.debug("Translating GetOrElse to IfNull", n)

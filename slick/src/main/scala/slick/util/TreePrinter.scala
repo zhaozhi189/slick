@@ -78,8 +78,9 @@ trait Dumpable {
 }
 
 /** The information required for dumping a single object */
-case class DumpInfo(name: String, mainInfo: String = "", attrInfo: String = "", children: Iterable[(String, Dumpable)] = Vector.empty) {
+case class DumpInfo(name: String, mainInfo: String = "", attrInfo: String = "", children: Iterable[(String, Dumpable)] = Vector.empty) extends Dumpable {
   def getNamePlusMainInfo = if(name.nonEmpty && mainInfo.nonEmpty) name + " " + mainInfo else name + mainInfo
+  def getDumpInfo: DumpInfo = this
 }
 
 object DumpInfo {

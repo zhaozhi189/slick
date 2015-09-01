@@ -11,16 +11,17 @@ import slick.util.ConstArray
 class ExpandTables extends Phase {
   val name = "expandTables"
 
-  def apply(state: CompilerState) = state.map { n => ClientSideOp.mapServerSide(n) { tree =>
+  def apply(state: CompilerState) = {
     import state.implicitGlobal
 
     // Find table fields
-    val structs = tree.collect[(TypeSymbol, (FieldSymbol, Type))] {
+    val structs = state.tree.collect[(TypeSymbol, (FieldSymbol, Type))] {
       case s @ Select(_ :@ (n: NominalType), sym: FieldSymbol) => n.sourceNominalType.sym -> (sym -> s.nodeType)
     }.toSeq.groupBy(_._1).map { case (ts, v) => (ts, NominalType(ts, StructType(ConstArray.from(v.map(_._2).toMap)))) }
     logger.debug("Found Selects for NominalTypes: "+structs.keySet.mkString(", "))
 
-    val tree2 = tree.replace {
+    state.global ++= structs.map { case (ts, n) => (ts, n.structuralView) }
+    val tree2 = state.tree.replace {
       case t: TableExpansion =>
         val ts = t.table.asInstanceOf[TableNode].identity
         t.table :@ CollectionType(t.nodeType.asCollectionType.cons, structs(ts))
@@ -30,22 +31,24 @@ class ExpandTables extends Phase {
 
     // Check for table types
     val tsyms: Set[TableIdentitySymbol] =
-      tree.nodeType.collect { case NominalType(sym: TableIdentitySymbol, _) => sym }.toSet
+      state.tree.nodeType.collect { case NominalType(sym: TableIdentitySymbol, _) => sym }.toSet
     logger.debug("Tables for expansion in result type: " + tsyms.mkString(", "))
 
-    if(tsyms.isEmpty) tree2 else {
+    val tree3 = if(tsyms.isEmpty) tree2 else {
       // Find the corresponding TableExpansions
-      val tables: Map[TableIdentitySymbol, (TermSymbol, Node)] = tree.collect {
-        case TableExpansion(s, TableNode(_, _, ts, _, _), ex) if tsyms contains ts => ts -> (s, ex)
+      val tables: Map[TableIdentitySymbol, (TermSymbol, Node)] = state.tree.collect {
+        case TableExpansion(s, TableNode(_, _, ts, _), ex) if tsyms contains ts => ts -> (s, ex)
       }.toMap
       logger.debug("Table expansions: " + tables.mkString(", "))
       // Create a mapping that expands the tables
       val sym = new AnonSymbol
       val mapping = createResult(tables, Ref(sym), tree2.nodeType.asCollectionType.elementType)
-        .infer()(state.global + (sym -> tree2.nodeType.asCollectionType.elementType))
+        .infer(SymbolScope(sym -> tree2.nodeType.asCollectionType.elementType))
       Bind(sym, tree2, Pure(mapping)).infer()
     }
-  }}.copy(wellTyped = true)
+
+    state.copy(tree = tree3, wellTyped = true)
+  }
 
   /** Create an expression that copies a structured value, expanding tables in it. */
   def createResult(expansions: Map[TableIdentitySymbol, (TermSymbol, Node)], path: Node, tpe: Type): Node = tpe match {

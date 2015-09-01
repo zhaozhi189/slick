@@ -1,7 +1,7 @@
 package slick.ast
 
 import scala.language.{implicitConversions, higherKinds}
-import slick.SlickException
+import slick.{SlickTreeException, SlickException}
 import scala.collection.generic.CanBuild
 import scala.collection.mutable.{Builder, ArrayBuilder}
 import scala.reflect.{ClassTag, classTag => mkClassTag}
@@ -21,7 +21,7 @@ trait Type extends Dumpable {
   /** Apply a side-effecting function to all children. */
   def childrenForeach[R](f: Type => R): Unit =
     children.foreach(f)
-  def select(sym: TermSymbol)(implicit types: SymbolScope): Type = throw new SlickException(s"No type for symbol $sym found in $this")
+  def select(sym: TermSymbol)(implicit global: GlobalTypes): Type = throw new SlickException(s"No type for symbol $sym found in $this")
   /** The structural view of this type */
   def structural: Type = this
   /** Remove all NominalTypes recursively from this Type */
@@ -56,7 +56,7 @@ final case class StructType(elements: ConstArray[(TermSymbol, Type)]) extends Ty
     val ch2 = ch.endoMap(f)
     if(ch2 eq ch) this else StructType(elements.zip(ch2).map { case (e, t) => (e._1, t) })
   }
-  override def select(sym: TermSymbol)(implicit types: SymbolScope) = sym match {
+  override def select(sym: TermSymbol)(implicit global: GlobalTypes) = sym match {
     case ElementSymbol(idx) => elements(idx-1)._2
     case _ =>
       val i = elements.indexWhere(_._1 == sym)
@@ -118,7 +118,7 @@ final case class ProductType(elements: ConstArray[Type]) extends Type {
     val ch2 = elements.endoMap(f)
     if(ch2 eq elements) this else ProductType(ch2)
   }
-  override def select(sym: TermSymbol)(implicit types: SymbolScope) = sym match {
+  override def select(sym: TermSymbol)(implicit global: GlobalTypes) = sym match {
     case ElementSymbol(i) if i <= elements.length => elements(i-1)
     case _ => super.select(sym)
   }
@@ -205,7 +205,7 @@ final class MappedScalaType(val baseType: Type, val mapper: MappedScalaType.Mapp
   }
   override final def childrenForeach[R](f: Type => R): Unit = f(baseType)
   def children: ConstArray[Type] = ConstArray(baseType)
-  override def select(sym: TermSymbol)(implicit types: SymbolScope) = baseType.select(sym)
+  override def select(sym: TermSymbol)(implicit global: GlobalTypes) = baseType.select(sym)
   override def hashCode = baseType.hashCode() + mapper.hashCode() + classTag.hashCode()
   override def equals(o: Any) = o match {
     case o: MappedScalaType => baseType == o.baseType && mapper == o.mapper && classTag == o.classTag
@@ -233,7 +233,11 @@ final case class NominalType(sym: TypeSymbol, structuralView: Type) extends Type
   def withStructuralView(t: Type): NominalType =
     if(t == structuralView) this else copy(structuralView = t)
   override def structural: Type = structuralView.structural
-  override def select(sym: TermSymbol)(implicit types: SymbolScope): Type = structuralView.select(sym)
+  override def select(sym: TermSymbol)(implicit global: GlobalTypes): Type = {
+    val str = global.get(this.sym).getOrElse(UnassignedType)
+    if(str != structuralView) throw new SlickException("Structural views for "+this.sym+" do not match\n   local: "+structuralView+"\n  global: "+str)
+    structuralView.select(sym)
+  }
   def mapChildren(f: Type => Type): NominalType = {
     val struct2 = f(structuralView)
     if(struct2 eq structuralView) this
