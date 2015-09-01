@@ -33,8 +33,8 @@ class FlattenProjections extends Phase {
             logger.debug("Found "+p.pathString+" with local part "+Path.toString(rest)+" over "+tsym)
             val paths = translations(tsym)
             logger.debug(s"  Translation for $tsym: $paths")
-            Select(base.untypedPath, paths(rest))
-          case None => p.untypedPath
+            Select(base /*.untypedPath*/, paths(rest))
+          case None => p //.untypedPath
         }
         logger.debug("Translated "+p.pathString+" to:", p2)
         p2

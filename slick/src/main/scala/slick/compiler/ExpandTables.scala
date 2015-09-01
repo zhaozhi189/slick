@@ -25,7 +25,7 @@ class ExpandTables extends Phase {
       case t: TableExpansion =>
         val ts = t.table.asInstanceOf[TableNode].identity
         t.table :@ CollectionType(t.nodeType.asCollectionType.cons, NominalType(ts))
-      case r: Ref => r.untyped
+      //case r: Ref => r.untyped
     }.infer()
     logger.debug("With correct table types:", tree2)
 

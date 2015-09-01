@@ -37,8 +37,8 @@ class RewriteJoins extends Phase {
         case Ref(s) :@ tpe if s == s1 => ref1 :@ tpe
         case Ref(s) :@ tpe if s == s2 => ref2 :@ tpe
       }, bottomUp = true)
-      val (j2, invalid) = hoistFilters(j)
-      val res = Bind(sn, j2, sel2.untypeReferences(invalid)).infer()
+      val j2 = hoistFilters(j)
+      val res = Bind(sn, j2, sel2).infer()
       logger.debug("Hoisted flatMapped Filter in:", Ellipsis(res, List(0, 0), List(0, 1)))
       flattenAliasingMap(res)
 
@@ -56,14 +56,13 @@ class RewriteJoins extends Phase {
         case Ref(s) :@ tpe if s == s1 => ref1 :@ tpe
         case Ref(s) :@ tpe if s == s2 => ref2 :@ tpe
       }
-      val (oj2, invalid) = hoistFilters(oj)
+      val oj2 = hoistFilters(oj)
       val (oj3, m) = eliminateIllegalRefs(oj2, Set.empty, sn)
       val oj4 = rearrangeJoinConditions(oj3)
       val sel3 = if(m.isEmpty) sel2 else sel2.replace {
         case p @ FwdPath(r1 :: rest) if r1 == sn && m.contains(rest) => m(rest)
-        case r @ Ref(s) if (oj4 ne oj3) && s == sn => r.untyped // Structural expansion may have changed
       }
-      val res = Bind(sn, oj4, sel3.untypeReferences(invalid)).infer()
+      val res = Bind(sn, oj4, sel3).infer()
       logger.debug("Hoisted flatMapped Join in:", Ellipsis(res, List(0, 0)))
       flattenAliasingMap(res)
 
@@ -80,8 +79,8 @@ class RewriteJoins extends Phase {
         case Ref(s) :@ tpe if s == s1 => ref1 :@ tpe
         case Ref(s) :@ tpe if s == s2 => ref2 :@ tpe
       }
-      val (j2, invalid) = hoistFilters(j)
-      val res = Bind(sn, j2, sel2.untypeReferences(invalid)).infer()
+      val j2 = hoistFilters(j)
+      val res = Bind(sn, j2, sel2).infer()
       logger.debug("Unnested Bind in:", Ellipsis(res, List(0, 0)))
       flattenAliasingMap(res)
 
@@ -100,38 +99,37 @@ class RewriteJoins extends Phase {
   }
 
   /** Hoist `Filter` nodes in `Join` generators into join predicates. */
-  def hoistFilters(j: Join)(implicit global: GlobalTypes): (Join, Set[TypeSymbol]) = {
-    def hoist(ts: TermSymbol, n: Node): (Node, Option[Node], Set[TypeSymbol]) = (n match {
+  def hoistFilters(j: Join)(implicit global: GlobalTypes): Join = {
+    def hoist(ts: TermSymbol, n: Node): (Node, Option[Node]) = (n match {
       case b: Bind => hoistFilterFromBind(b)
-      case n => (n, Set.empty[TypeSymbol])
+      case n => n
     }) match {
-      case (Filter(s, f, p), invalid) =>
+      case Filter(s, f, p) =>
         val p2 = p.replace({ case Ref(rs) :@ tpe if rs == s => Ref(ts) })
-        val (f2, pOpt, invalid2) = hoist(ts, f)
-        (f2, Some(and(pOpt, p2)), invalid ++ invalid2)
-      case (n, invalid) => (n, None, invalid)
+        val (f2, pOpt) = hoist(ts, f)
+        (f2, Some(and(pOpt, p2)))
+      case n => (n, None)
     }
-    val (l1, p1Opt, inv1) = hoist(j.leftGen, j.left)
-    val (r1, p2Opt, inv2) = hoist(j.rightGen, j.right)
-    val invalid = inv1 ++ inv2
-    if((l1 eq j.left) && (r1 eq j.right)) (j, invalid)
+    val (l1, p1Opt) = hoist(j.leftGen, j.left)
+    val (r1, p2Opt) = hoist(j.rightGen, j.right)
+    if((l1 eq j.left) && (r1 eq j.right)) j
     else {
-      val j2 = j.copy(left = l1, right = r1, on = and(p1Opt, and(p2Opt, j.on.untypeReferences(invalid)))).infer()
+      val j2 = j.copy(left = l1, right = r1, on = and(p1Opt, and(p2Opt, j.on))).infer()
       logger.debug("Hoisting join filters from:", j)
       logger.debug("Hoisted join filters in:", j2)
-      (j2, invalid)
+      j2
     }
   }
 
   /** Recursively hoist `Filter` out of of `Bind(_, Filter, Pure(StructNode))`. Returns the possibly
     * modified tree plus a set of invalidated TypeSymbols (non-empty if additional columns
     * have to be added to the base projection for the filters). */
-  def hoistFilterFromBind(b: Bind)(implicit global: GlobalTypes): (Node, Set[TypeSymbol]) = {
+  def hoistFilterFromBind(b: Bind)(implicit global: GlobalTypes): Node = {
     (b.from match {
       case b2: Bind => hoistFilterFromBind(b2)
-      case n => (n, Set.empty[TypeSymbol])
+      case n => n
     }) match {
-      case (Filter(fs1, from1, pred1), tss1) =>
+      case Filter(fs1, from1, pred1) =>
         logger.debug("Hoisting Filter out of Bind from:", b)
         val sRefs = pred1.collect({ case p @ FwdPath(s :: rest) if s == fs1 => (p, FwdPath(b.generator :: rest)) }, stopOnMatch = true)
         val Bind(_, _, Pure(StructNode(struct1), pts)) = b
@@ -143,17 +141,17 @@ class RewriteJoins extends Phase {
         logger.debug("New references for predicate: "+newDefs.mkString(", "))
         val allRefs = foundRefs.collect { case (p, (_, Some(s))) => (p, s) } ++ newDefs.map { case (p, (_, s)) => (p, s) }
         logger.debug("All reference mappings for predicate: "+allRefs.mkString(", "))
-        val (sel, tss) =
-          if(newDefs.isEmpty) (b.select, tss1)
-          else (Pure(StructNode(struct1 ++ ConstArray.from(newDefs.map { case (_, (pOnGen, s)) => (s, pOnGen) })), pts), tss1 + pts)
+        val sel =
+          if(newDefs.isEmpty) b.select
+          else Pure(StructNode(struct1 ++ ConstArray.from(newDefs.map { case (_, (pOnGen, s)) => (s, pOnGen) })), pts)
         val fs = new AnonSymbol
         val pred = pred1.replace {
           case p : Select => allRefs.get(p).map(s => Select(Ref(fs) :@ b.nodeType.asCollectionType.elementType, s) :@ p.nodeType).getOrElse(p)
         }
         val res = Filter(fs, Bind(b.generator, from1, sel), pred).infer()
-        logger.debug("Hoisted Filter out of Bind (invalidated: "+tss.mkString(", ")+") in:", res)
-        (res, tss)
-      case _ => (b, Set.empty)
+        logger.debug("Hoisted Filter out of Bind in:", res)
+        res
+      case _ => b
     }
   }
 
@@ -203,9 +201,7 @@ class RewriteJoins extends Phase {
       val on1 = j.on.replace({
         case p @ FwdPath(r1 :: rest) if r1 == j.leftGen && l1m.contains(rest) => l1m(rest)
         case p @ FwdPath(r1 :: rest) if r1 == j.rightGen && r1m.contains(rest) => r1m(rest)
-      }, keepType = true, bottomUp = true).replace {
-        case r @ Ref(s) if s == j.leftGen || s == j.rightGen => r.untyped // Structural expansion may have changed
-      }
+      }, keepType = true, bottomUp = true)
       val j2 = j.copy(left = l1, right = r1, on = on1).infer()
       logger.debug("Eliminated illegal refs ["+illegal.mkString(", ")+"] in:", j2)
       val m = l1m.map { case (p, n) => (ElementSymbol(1) :: p, n) } ++

@@ -26,7 +26,7 @@ class MergeToComprehensions extends Phase {
   type Mappings = ConstArray[((TypeSymbol, TermSymbol), List[TermSymbol])]
 
   def apply(state: CompilerState) = state.map(n => ClientSideOp.mapResultSetMapping(n, keepType = false) { rsm =>
-    rsm.copy(from = convert(rsm.from)(state.global), map = rsm.map.replace { case r: Ref => r.untyped })
+    rsm.copy(from = convert(rsm.from)(state.global) /*, map = rsm.map.replace { case r: Ref => r.untyped } */)
   }.infer()(state.global))
 
   def convert(tree: Node)(implicit global: GlobalTypes): Node = {

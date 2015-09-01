@@ -21,10 +21,10 @@ class RemoveFieldNames extends Phase {
       }.toSet
       val allTSyms = n.collect[TypeSymbol] { case p: Pure => p.identity }.toSet
       val unrefTSyms = allTSyms -- refTSyms
-      n.replaceInvalidate {
+      n.replace({
         case Pure(StructNode(ch), pts) if unrefTSyms contains pts =>
-          (Pure(if(ch.length == 1 && pts != top) ch(0)._2 else ProductNode(ch.map(_._2)), pts), pts)
-      }.infer()
+          Pure(if(ch.length == 1 && pts != top) ch(0)._2 else ProductNode(ch.map(_._2)), pts)
+      }, bottomUp = true).infer()
     })
     logger.debug("Transformed RSM: ", rsm2)
     val CollectionType(_, fType) = rsm2.from.nodeType

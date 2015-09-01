@@ -83,8 +83,8 @@ class HoistClientOps extends Phase {
               case Select(Ref(s), f) if s == sr1 && (br2 ne br) =>
                 val (wrap, f2) = rrepl(f)
                 wrap(Select(Ref(s), f2))
-              case Ref(s) if (s == sl1 && (bl2 ne bl)) || (s == sr1 && (br2 ne br)) =>
-                Ref(s)
+              //case Ref(s) if (s == sl1 && (bl2 ne bl)) || (s == sr1 && (br2 ne br)) =>
+              //  Ref(s)
             })
             val sel2 = sel1.replace {
               case Select(Select(Ref(s), ElementSymbol(1)), f) if s == s1 && (bl2 ne bl) =>
@@ -93,7 +93,7 @@ class HoistClientOps extends Phase {
               case Select(Select(Ref(s), ElementSymbol(2)), f) if s == s1 && (br2 ne br) =>
                 val (wrap, f2) = rrepl(f)
                 wrap(Select(Select(Ref(s), ElementSymbol(2)), f2))
-              case Ref(s) if s == s1 => Ref(s)
+              //case Ref(s) if s == s1 => Ref(s)
             }
             logger.debug("from3", from3)
             logger.debug("sel2", sel2)
@@ -109,7 +109,7 @@ class HoistClientOps extends Phase {
     case n @ CollectionCast(from1 :@ CollectionType(cons1, _), cons2) if !cons1.isUnique || cons2.isUnique =>
       shuffle(from1) match {
         case Bind(s1, bfrom1, sel1 @ Pure(StructNode(elems1), _)) if !bfrom1.isInstanceOf[GroupBy] =>
-          val res = Bind(s1, CollectionCast(bfrom1, cons2), sel1.replace { case Ref(s) if s == s1 => Ref(s) }).infer()
+          val res = Bind(s1, CollectionCast(bfrom1, cons2), sel1 /*.replace { case Ref(s) if s == s1 => Ref(s) }*/ ).infer()
           logger.debug("Pulled Bind out of CollectionCast", Ellipsis(res, List(0,0)))
           res
         case from2 => if(from2 eq from1) n else n.copy(child = from2) :@ n.nodeType
@@ -123,7 +123,7 @@ class HoistClientOps extends Phase {
           val defs = elems1.iterator.toMap
           val res = Bind(bs1, Filter(s3, bfrom1, pred1.replace {
             case Select(Ref(s), f) if s == s1 => defs(f).replace { case Ref(s) if s == bs1 => Ref(s3) }
-          }), sel1.replace { case Ref(s) if s == bs1 => Ref(s) })
+          }), sel1 /*.replace { case Ref(s) if s == bs1 => Ref(s) } */)
           logger.debug("Pulled Bind out of Filter", Ellipsis(res, List(0,0)))
           res.infer()
         case from2 =>

@@ -80,13 +80,6 @@ final class NodeOps(val tree: Node) extends AnyVal {
     tr(tree)
   }
 
-  def untypeReferences(invalid: Set[TypeSymbol]): Node = {
-    import TypeUtil.typeToTypeUtil
-    if(invalid.isEmpty) tree else replace({
-      case n: PathElement if n.nodeType.containsSymbol(invalid) => n.untyped
-    }, bottomUp = true)
-  }
-
   def findNode(p: Node => Boolean): Option[Node] = {
     if(p(tree)) Some(tree)
     else {

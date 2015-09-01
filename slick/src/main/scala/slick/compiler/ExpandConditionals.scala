@@ -15,23 +15,17 @@ class ExpandConditionals extends Phase {
   def apply(state: CompilerState) = state.map(expand(_)(state.global))
 
   def expand(n: Node)(implicit global: GlobalTypes): Node = {
-    val invalid = mutable.HashSet.empty[TypeSymbol]
-    def invalidate(n: Node): Unit = invalid ++= n.nodeType.collect { case NominalType(ts) => ts }.toSeq
-
     def tr(n: Node): Node = n.mapChildren(tr, keepType = true) match {
       // Expand multi-column SilentCasts
       case cast @ Library.SilentCast(ch) :@ Type.Structural(ProductType(typeCh)) =>
-        invalidate(ch)
         val elems = typeCh.zipWithIndex.map { case (t, idx) => tr(Library.SilentCast.typed(t, ch.select(ElementSymbol(idx+1))).infer()) }
         ProductNode(elems).infer()
       case Library.SilentCast(ch) :@ Type.Structural(StructType(typeCh)) =>
-        invalidate(ch)
         val elems = typeCh.map { case (sym, t) => (sym, tr(Library.SilentCast.typed(t, ch.select(sym)).infer())) }
         StructNode(elems).infer()
 
       // Optimize trivial SilentCasts
       case Library.SilentCast(v :@ tpe) :@ tpe2 if tpe.structural == tpe2.structural =>
-        invalidate(v)
         v
       case Library.SilentCast(Library.SilentCast(ch)) :@ tpe => tr(Library.SilentCast.typed(tpe, ch).infer())
       case Library.SilentCast(LiteralNode(None)) :@ (tpe @ OptionType.Primitive(_)) => LiteralNode(tpe, None).infer()
@@ -60,17 +54,10 @@ class ExpandConditionals extends Phase {
       case Select(ProductNode(ch), ElementSymbol(idx)) => ch(idx-1)
       case Select(StructNode(ch), sym) => ch.find(_._1 == sym).get._2
 
-      case n2 @ Pure(_, ts) if n2 ne n =>
-        invalid += ts
-        n2
-
       case n => n
     }
 
     val n2 = tr(n)
-    logger.debug("Invalidated TypeSymbols: "+invalid.mkString(", "))
-    n2.replace({
-      case n: PathElement if n.nodeType.containsSymbol(invalid) => n.untyped
-    }, bottomUp = true).infer()
+    n2.infer()
   }
 }
