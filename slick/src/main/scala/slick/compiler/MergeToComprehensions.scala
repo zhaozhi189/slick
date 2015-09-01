@@ -32,7 +32,7 @@ class MergeToComprehensions extends Phase {
   def convert(tree: Node)(implicit global: GlobalTypes): Node = {
     // Find all references into tables so we can convert TableNodes to Comprehensions
     val tableFields =
-      tree.collect { case Select(_ :@ NominalType(t: TableIdentitySymbol, _), f) => (t, f) }
+      tree.collect { case Select(_ :@ NominalType(t: TableIdentitySymbol), f) => (t, f) }
         .toSeq.groupBy(_._1).mapValues(_.map(_._2).distinct.toVector)
     logger.debug("Table fields: " + tableFields)
 
@@ -304,7 +304,7 @@ class MergeToComprehensions extends Phase {
     case n => parent(n, buildBase)
   }
 
-  def and(p1: Node, p2: Node): Node = {
+  def and(p1: Node, p2: Node)(implicit global: GlobalTypes): Node = {
     val t1 = p1.nodeType.structural
     Library.And.typed(if(t1.isInstanceOf[OptionType]) t1 else p2.nodeType.structural, p1, p2)
   }
@@ -328,10 +328,10 @@ class MergeToComprehensions extends Phase {
         val map1M = map1.iterator.toMap
         val map2 = defs.map { case (f1, p) =>
           val sel = p.findNode {
-            case Select(_ :@ NominalType(_, _), _) => true
+            case Select(_ :@ NominalType(_), _) => true
             case _ => false
           }.getOrElse(throw new SlickTreeException("Missing path on top of TypeSymbol in:", p))
-          val Select(_ :@ NominalType(ts2, _), f2) = sel
+          val Select(_ :@ NominalType(ts2), f2) = sel
           (ts1, f1) -> map1M((ts2, f2))
         }
         global -= ts1
@@ -345,7 +345,7 @@ class MergeToComprehensions extends Phase {
   def applyReplacements(n1: Node, r: Replacements, c: Comprehension): Node = {
     val Pure(StructNode(base), _) = c.select
     val baseM = base.iterator.toMap
-    n1.replace({ case n @ Select(_ :@ NominalType(ts, _), s) =>
+    n1.replace({ case n @ Select(_ :@ NominalType(ts), s) =>
       r.get((ts, s)) match {
         case Some(s2) => baseM(s2)
         case None => n
@@ -355,7 +355,7 @@ class MergeToComprehensions extends Phase {
 
   object FwdPathOnTypeSymbol {
     def unapply(n: Node): Option[(TypeSymbol, List[TermSymbol])] = n match {
-      case (n: PathElement) :@ NominalType(ts, _) => Some((ts, List(n.sym)))
+      case (n: PathElement) :@ NominalType(ts) => Some((ts, List(n.sym)))
       case Select(in, s) => unapply(in).map { case (ts, l) => (ts, l :+ s) }
       case _ => None
     }

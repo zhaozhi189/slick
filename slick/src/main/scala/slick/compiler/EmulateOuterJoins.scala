@@ -63,7 +63,7 @@ class EmulateOuterJoins(val useLeftJoin: Boolean, val useRightJoin: Boolean) ext
   }
 
   /** Create a structure of the given type where all columns are NULL. */
-  def nullStructFor(t: Type): Node = t.structural match {
+  def nullStructFor(t: Type)(implicit global: GlobalTypes): Node = t.structural match {
     case ProductType(ts) => ProductNode(ts.map(nullStructFor))
     case StructType(sts) => StructNode(sts.map { case (s, t) => (s, nullStructFor(t)) })
     case t: OptionType => LiteralNode(t, None)
@@ -79,7 +79,7 @@ class EmulateOuterJoins(val useLeftJoin: Boolean, val useRightJoin: Boolean) ext
       case ts => ts -> new AnonTypeSymbol
     }.toMap
     def replaceTS(t: Type): Type = (t match {
-      case NominalType(ts, v) => repl.get(ts).map(new NominalType(_, v)).getOrElse(t)
+      case NominalType(ts) => repl.get(ts).map(new NominalType(_)).getOrElse(t)
       case t => t
     }).mapChildren(replaceTS)
     repl.foreach { case (ts1, ts2) => global.get(ts1).foreach(t => global += ts2 -> replaceTS(t)) }

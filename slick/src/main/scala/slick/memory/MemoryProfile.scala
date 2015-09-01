@@ -56,7 +56,8 @@ trait MemoryProfile extends RelationalProfile with MemoryQueryingProfile { drive
     }
   }
 
-  class MappedColumnType[T, U](val baseType: ColumnType[U], toBase: T => U, toMapped: U => T)(implicit val classTag: ClassTag[T]) extends ScalaType[T] with BaseTypedType[T] {
+  class MappedColumnType[T, U](val baseType: ColumnType[U], toBase: T => U, toMapped: U => T)(implicit val _classTag: ClassTag[T]) extends ScalaType[T] with BaseTypedType[T] {
+    def classTag(implicit global: GlobalTypes) = _classTag
     def nullable: Boolean = baseType.nullable
     def ordered: Boolean = baseType.ordered
     def scalaOrderingFor(ord: Ordering): scala.math.Ordering[T] = new scala.math.Ordering[T] {
@@ -74,7 +75,7 @@ trait MemoryProfile extends RelationalProfile with MemoryQueryingProfile { drive
     override def run(n: Node) = n match {
       case ResultSetMapping(_, from, CompiledMapping(converter, _)) :@ CollectionType(cons, el) =>
         val fromV = run(from).asInstanceOf[TraversableOnce[Any]]
-        val b = cons.createBuilder(el.classTag).asInstanceOf[Builder[Any, Any]]
+        val b = cons.createBuilder(el.classTag(GlobalTypes.local)).asInstanceOf[Builder[Any, Any]]
         b ++= fromV.map(v => converter.asInstanceOf[ResultConverter[MemoryResultConverterDomain, _]].read(v.asInstanceOf[QueryInterpreter.ProductValue]))
         b.result()
       case n => super.run(n)

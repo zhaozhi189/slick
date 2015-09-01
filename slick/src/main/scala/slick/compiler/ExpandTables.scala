@@ -17,21 +17,21 @@ class ExpandTables extends Phase {
     // Find table fields
     val structs = state.tree.collect[(TypeSymbol, (FieldSymbol, Type))] {
       case s @ Select(_ :@ (n: NominalType), sym: FieldSymbol) => n.sourceNominalType.sym -> (sym -> s.nodeType)
-    }.toSeq.groupBy(_._1).map { case (ts, v) => (ts, NominalType(ts, StructType(ConstArray.from(v.map(_._2).toMap)))) }
+    }.toSeq.groupBy(_._1).map { case (ts, v) => (ts, StructType(ConstArray.from(v.map(_._2).toMap))) }
     logger.debug("Found Selects for NominalTypes: "+structs.keySet.mkString(", "))
 
-    state.global ++= structs.map { case (ts, n) => (ts, n.structuralView) }
+    state.global ++= structs
     val tree2 = state.tree.replace {
       case t: TableExpansion =>
         val ts = t.table.asInstanceOf[TableNode].identity
-        t.table :@ CollectionType(t.nodeType.asCollectionType.cons, structs(ts))
+        t.table :@ CollectionType(t.nodeType.asCollectionType.cons, NominalType(ts))
       case r: Ref => r.untyped
     }.infer()
     logger.debug("With correct table types:", tree2)
 
     // Check for table types
     val tsyms: Set[TableIdentitySymbol] =
-      state.tree.nodeType.collect { case NominalType(sym: TableIdentitySymbol, _) => sym }.toSet
+      state.tree.nodeType.collectRec { case NominalType(sym: TableIdentitySymbol) => sym }.toSet
     logger.debug("Tables for expansion in result type: " + tsyms.mkString(", "))
 
     val tree3 = if(tsyms.isEmpty) tree2 else {
@@ -51,10 +51,10 @@ class ExpandTables extends Phase {
   }
 
   /** Create an expression that copies a structured value, expanding tables in it. */
-  def createResult(expansions: Map[TableIdentitySymbol, (TermSymbol, Node)], path: Node, tpe: Type): Node = tpe match {
+  def createResult(expansions: Map[TableIdentitySymbol, (TermSymbol, Node)], path: Node, tpe: Type)(implicit global: GlobalTypes): Node = tpe match {
     case p: ProductType =>
       ProductNode(p.elements.zipWithIndex.map { case (t, i) => createResult(expansions, Select(path, ElementSymbol(i+1)), t) })
-    case NominalType(tsym: TableIdentitySymbol, _) if expansions contains tsym =>
+    case NominalType(tsym: TableIdentitySymbol) if expansions contains tsym =>
       val (sym, exp) = expansions(tsym)
       exp.replace { case Ref(s) if s == sym => path }
     case tpe: NominalType => createResult(expansions, path, tpe.structuralView)

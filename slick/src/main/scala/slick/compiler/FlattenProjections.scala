@@ -15,6 +15,7 @@ class FlattenProjections extends Phase {
   val name = "flattenProjections"
 
   def apply(state: CompilerState) = state.map { tree =>
+    import state.implicitGlobal
     val translations = new HashMap[TypeSymbol, Map[List[TermSymbol], TermSymbol]]
     def tr(n: Node, topLevel: Boolean): Node = n match {
       case Pure(v, ts) =>
@@ -56,7 +57,7 @@ class FlattenProjections extends Phase {
     * symbols on top of `base`. */
   def splitPath(n: PathElement, candidates: scala.collection.Set[TypeSymbol]): Option[(PathElement, List[TermSymbol], TypeSymbol)] = {
     def checkType(tpe: Type): Option[(PathElement, List[TermSymbol], TypeSymbol)] = tpe match {
-      case NominalType(tsym, _) if candidates contains tsym => Some((n, Nil, tsym))
+      case NominalType(tsym) if candidates contains tsym => Some((n, Nil, tsym))
       case _ => None
     }
     n match {

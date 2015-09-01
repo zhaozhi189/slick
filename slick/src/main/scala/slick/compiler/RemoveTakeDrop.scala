@@ -41,7 +41,7 @@ class RemoveTakeDrop extends Phase {
         val bs2 = new AnonSymbol
         val b2 = Bind(bs2, f, Pure(Select(Ref(bs2), ElementSymbol(1))))
         logger.debug(s"""Translated "drop $d, then take $t" to zipWithIndex operation:""", b2)
-        val invalidate = fromRetyped.nodeType.collect { case NominalType(ts, _) => ts }
+        val invalidate = fromRetyped.nodeType.collect { case NominalType(ts) => ts }
         logger.debug("Invalidating TypeSymbols: "+invalidate.mkString(", "))
         invalid ++= invalidate.toSeq
         b2

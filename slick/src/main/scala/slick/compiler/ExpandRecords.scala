@@ -8,9 +8,9 @@ import Util._
 class ExpandRecords extends Phase {
   val name = "expandRecords"
 
-  def apply(state: CompilerState) = state.map(_.replace({ case n: PathElement => expandPath(n) }).infer()(state.global))
+  def apply(state: CompilerState) = state.map(_.replace({ case n: PathElement => expandPath(n)(state.global) }).infer()(state.global))
 
-  def expandPath(n: Node): Node = n.nodeType.structural match {
+  def expandPath(n: Node)(implicit global: GlobalTypes): Node = n.nodeType.structural match {
     case StructType(ch) =>
       StructNode(ch.map { case (s, t) => (s, expandPath(n.select(s) :@ t)) })
     case p: ProductType =>

@@ -91,7 +91,7 @@ class ExpandSums extends Phase {
   }
 
   /** Translate an Option-extended left outer, right outer or full outer join */
-  def translateJoin(bind: Bind, discCandidates: Set[(TypeSymbol, List[TermSymbol])])(implicit global: GlobalTypes): Bind = {
+  def translateJoin(bind: Bind, discCandidates: Set[(TypeSymbol, List[TermSymbol])])(implicit globalTypes: GlobalTypes): Bind = {
     logger.debug("translateJoin", bind)
     val Bind(bsym, (join @ Join(lsym, rsym, left :@ CollectionType(_, leftElemType), right :@ CollectionType(_, rightElemType), jt, on)) :@ CollectionType(cons, elemType), pure) = bind
     val lComplex = !leftElemType.structural.isInstanceOf[AtomicType]
@@ -101,7 +101,7 @@ class ExpandSums extends Phase {
     // Find an existing column that can serve as a discriminator
     def findDisc(t: Type): Option[List[TermSymbol]] = {
       val global: Set[List[TermSymbol]] = t match {
-        case NominalType(ts, exp) =>
+        case NominalType(ts) =>
           val c = discCandidates.filter { case (t, ss) => t == ts && ss.nonEmpty }.map(_._2)
           logger.debug("Discriminator candidates from surrounding Filter and Join predicates: "+
             c.map(Path.toString).mkString(", "))
@@ -185,7 +185,7 @@ class ExpandSums extends Phase {
   }
 
   /** Create a SilentCast call unless the type already matches */
-  def silentCast(tpe: Type, n: Node): Node = n match {
+  def silentCast(tpe: Type, n: Node)(implicit global: GlobalTypes): Node = n match {
     case LiteralNode(None) :@ OptionType(ScalaBaseType.nullType) => buildMultiColumnNone(tpe)
     case n :@ tpe2 if tpe2 == tpe => n
     case n =>
@@ -194,7 +194,7 @@ class ExpandSums extends Phase {
   }
 
   /** Create a Node representing a structure of null values of the given Type */
-  def buildMultiColumnNone(tpe: Type): Node = (tpe.structural match {
+  def buildMultiColumnNone(tpe: Type)(implicit global: GlobalTypes): Node = (tpe.structural match {
     case ProductType(ch) => ProductNode(ch.map(buildMultiColumnNone))
     case StructType(ch) => StructNode(ch.map { case (sym, t) => (sym, buildMultiColumnNone(t)) })
     case OptionType(ch) => LiteralNode(tpe, None)
@@ -210,16 +210,17 @@ class ExpandSums extends Phase {
     }
     val tpe2 = f(tpe)
     logger.debug(s"Translated type: $tpe -> $tpe2")
-    tpe2 match {
+    //TODO
+    /*tpe2 match {
       case NominalType(ts, exp) => global += ts -> exp
       case _ =>
-    }
+    }*/
     tpe2
   }
 
   /** Strip nominal types and convert all atomic types to OptionTypes */
-  def toOptionColumns(tpe: Type): Type = tpe match {
-    case NominalType(_, str) => toOptionColumns(str)
+  def toOptionColumns(tpe: Type)(implicit global: GlobalTypes): Type = tpe match {
+    case tpe: NominalType => toOptionColumns(tpe.structural)
     case o @ OptionType(ch) if ch.structural.isInstanceOf[AtomicType] => o
     case t: AtomicType => OptionType(t)
     case t => t.mapChildren(toOptionColumns)
@@ -242,7 +243,7 @@ class ExpandSums extends Phase {
 
   object PathOnTypeSymbol {
     def unapply(n: Node): Option[(TypeSymbol, List[TermSymbol])] = n match {
-      case (n: PathElement) :@ NominalType(ts, _) => Some((ts, Nil))
+      case (n: PathElement) :@ NominalType(ts) => Some((ts, Nil))
       case Select(in, s) => unapply(in).map { case (ts, l) => (ts, s :: l) }
       case Library.SilentCast(ch) => unapply(ch)
       case _ => None

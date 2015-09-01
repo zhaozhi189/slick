@@ -10,10 +10,11 @@ import scala.reflect.ClassTag
 
 trait JdbcTypesComponent extends RelationalTypesComponent { driver: JdbcDriver =>
 
-  abstract class MappedJdbcType[T, U](implicit val tmd: JdbcType[U], val classTag: ClassTag[T]) extends JdbcType[T] {
+  abstract class MappedJdbcType[T, U](implicit val tmd: JdbcType[U], val _classTag: ClassTag[T]) extends JdbcType[T] {
     def map(t: T): U
     def comap(u: U): T
 
+    def classTag(implicit global: GlobalTypes) = _classTag
     def newSqlType: Option[Int] = None
     def newSqlTypeName(size: Option[RelationalProfile.ColumnOption.Length]): Option[String] = None
     def newValueToSQLLiteral(value: T): Option[String] = None
@@ -33,10 +34,10 @@ trait JdbcTypesComponent extends RelationalTypesComponent { driver: JdbcDriver =
     def valueToSQLLiteral(value: T) = newValueToSQLLiteral(value).getOrElse(tmd.valueToSQLLiteral(map(value)))
     def hasLiteralForm = newHasLiteralForm.getOrElse(tmd.hasLiteralForm)
     def scalaType = ScalaBaseType[T]
-    override def toString = s"MappedJdbcType[${classTag.runtimeClass.getName} -> $tmd]"
-    override def hashCode = tmd.hashCode() + classTag.hashCode()
+    override def toString = s"MappedJdbcType[${_classTag.runtimeClass.getName} -> $tmd]"
+    override def hashCode = tmd.hashCode() + _classTag.hashCode()
     override def equals(o: Any) = o match {
-      case o: MappedJdbcType[_, _] => tmd == o.tmd && classTag == o.classTag
+      case o: MappedJdbcType[_, _] => tmd == o.tmd && _classTag == o._classTag
       case _ => false
     }
   }
@@ -55,7 +56,7 @@ trait JdbcTypesComponent extends RelationalTypesComponent { driver: JdbcDriver =
     def unapply(t: Type) = Some((jdbcTypeFor(t), t.isInstanceOf[OptionType]))
   }
 
-  def jdbcTypeFor(t: Type): JdbcType[Any] = ((t.structural match {
+  def jdbcTypeFor(t: Type): JdbcType[Any] = ((t.structural(GlobalTypes.local) match {
     case tmd: JdbcType[_] => tmd
     case ScalaBaseType.booleanType => columnTypes.booleanJdbcType
     case ScalaBaseType.bigDecimalType => columnTypes.bigDecimalJdbcType
@@ -81,7 +82,8 @@ trait JdbcTypesComponent extends RelationalTypesComponent { driver: JdbcDriver =
       throw new SlickException("No SQL type name found in java.sql.Types for code "+t))
   }
 
-  abstract class DriverJdbcType[@specialized T](implicit val classTag: ClassTag[T]) extends JdbcType[T] {
+  abstract class DriverJdbcType[@specialized T](implicit val _classTag: ClassTag[T]) extends JdbcType[T] {
+    def classTag(implicit global: GlobalTypes) = _classTag
     def scalaType = ScalaBaseType[T]
     def sqlTypeName(size: Option[RelationalProfile.ColumnOption.Length]): String = driver.defaultSqlTypeName(this, size)
     def valueToSQLLiteral(value: T) =

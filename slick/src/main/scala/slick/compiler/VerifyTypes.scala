@@ -21,7 +21,7 @@ class VerifyTypes(after: Option[Phase] = None) extends Phase {
     val retyped = tree.replace({
       case t: TableNode =>
         t.nodeType match {
-          case CollectionType(cons, NominalType(ts, _)) =>
+          case CollectionType(cons, NominalType(ts)) =>
           case _ =>
             logger.warn("Table has unexpected type:", t)
         }

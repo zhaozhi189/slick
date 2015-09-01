@@ -23,11 +23,11 @@ trait Type extends Dumpable {
     children.foreach(f)
   def select(sym: TermSymbol)(implicit global: GlobalTypes): Type = throw new SlickException(s"No type for symbol $sym found in $this")
   /** The structural view of this type */
-  def structural: Type = this
+  def structural(implicit global: GlobalTypes): Type = this
   /** Remove all NominalTypes recursively from this Type */
-  def structuralRec: Type = structural.mapChildren(_.structuralRec)
+  def structuralRec(implicit global: GlobalTypes): Type = structural.mapChildren(_.structuralRec)
   /** A ClassTag for the erased type of this type's Scala values */
-  def classTag: ClassTag[_]
+  def classTag(implicit global: GlobalTypes): ClassTag[_]
   def getDumpInfo = DumpInfo(DumpInfo.simpleNameFor(getClass), toString, "",
     children.zipWithIndex.map { case (ch, i) => (i.toString, ch) }.toSeq)
 }
@@ -35,7 +35,7 @@ trait Type extends Dumpable {
 object Type {
   /** An extractor for strucural expansions of types */
   object Structural {
-    def unapply(t: Type): Some[Type] = Some(t.structural)
+    def unapply(t: Type)(implicit global: GlobalTypes): Some[Type] = Some(t.structural)
   }
 }
 
@@ -62,7 +62,7 @@ final case class StructType(elements: ConstArray[(TermSymbol, Type)]) extends Ty
       val i = elements.indexWhere(_._1 == sym)
       if(i >= 0) elements(i)._2 else super.select(sym)
   }
-  def classTag = TupleSupport.classTagForArity(elements.length)
+  def classTag(implicit global: GlobalTypes) = TupleSupport.classTagForArity(elements.length)
   override final def childrenForeach[R](f: Type => R): Unit = elements.foreach(t => f(t._2))
 }
 
@@ -70,7 +70,7 @@ trait OptionType extends Type {
   override def toString = "Option[" + elementType + "]"
   def elementType: Type
   def children: ConstArray[Type] = ConstArray(elementType)
-  def classTag = OptionType.classTag
+  def classTag(implicit global: GlobalTypes) = OptionType.classTag
   override def hashCode = elementType.hashCode() + 100
   override def equals(o: Any) = o match {
     case OptionType(elem) if elementType == elem => true
@@ -97,7 +97,7 @@ object OptionType {
 
   /** An extractor for a non-nested Option type of a single column */
   object Primitive {
-    def unapply(tpe: Type): Option[Type] = tpe.structural match {
+    def unapply(tpe: Type)(implicit global: GlobalTypes): Option[Type] = tpe.structural match {
       case o: OptionType if o.elementType.structural.isInstanceOf[AtomicType] => Some(o.elementType)
       case _ => None
     }
@@ -105,7 +105,7 @@ object OptionType {
 
   /** An extractor for a nested or multi-column Option type */
   object NonPrimitive {
-    def unapply(tpe: Type): Option[Type] = tpe.structural match {
+    def unapply(tpe: Type)(implicit global: GlobalTypes): Option[Type] = tpe.structural match {
       case o: OptionType if !o.elementType.structural.isInstanceOf[AtomicType] => Some(o.elementType)
       case _ => None
     }
@@ -123,7 +123,7 @@ final case class ProductType(elements: ConstArray[Type]) extends Type {
     case _ => super.select(sym)
   }
   def children: ConstArray[Type] = elements
-  def classTag = TupleSupport.classTagForArity(elements.length)
+  def classTag(implicit global: GlobalTypes) = TupleSupport.classTagForArity(elements.length)
 }
 
 final case class CollectionType(cons: CollectionTypeConstructor, elementType: Type) extends Type {
@@ -135,7 +135,7 @@ final case class CollectionType(cons: CollectionTypeConstructor, elementType: Ty
   }
   override final def childrenForeach[R](f: Type => R): Unit = f(elementType)
   def children: ConstArray[Type] = ConstArray(elementType)
-  def classTag = cons.classTag
+  def classTag(implicit global: GlobalTypes) = cons.classTag
 }
 
 /** Represents a type constructor that can be usd for a collection-valued query.
@@ -196,19 +196,20 @@ object TypedCollectionTypeConstructor {
   }
 }
 
-final class MappedScalaType(val baseType: Type, val mapper: MappedScalaType.Mapper, val classTag: ClassTag[_]) extends Type {
+final class MappedScalaType(val baseType: Type, val mapper: MappedScalaType.Mapper, val _classTag: ClassTag[_]) extends Type {
+  def classTag(implicit global: GlobalTypes) = _classTag
   override def toString = s"Mapped[$baseType]"
   def mapChildren(f: Type => Type): MappedScalaType = {
     val e2 = f(baseType)
     if(e2 eq baseType) this
-    else new MappedScalaType(e2, mapper, classTag)
+    else new MappedScalaType(e2, mapper, _classTag)
   }
   override final def childrenForeach[R](f: Type => R): Unit = f(baseType)
   def children: ConstArray[Type] = ConstArray(baseType)
   override def select(sym: TermSymbol)(implicit global: GlobalTypes) = baseType.select(sym)
-  override def hashCode = baseType.hashCode() + mapper.hashCode() + classTag.hashCode()
+  override def hashCode = baseType.hashCode() + mapper.hashCode() + _classTag.hashCode()
   override def equals(o: Any) = o match {
-    case o: MappedScalaType => baseType == o.baseType && mapper == o.mapper && classTag == o.classTag
+    case o: MappedScalaType => baseType == o.baseType && mapper == o.mapper && _classTag == o._classTag
     case _ => false
   }
 }
@@ -219,7 +220,7 @@ object MappedScalaType {
 
 /** The standard type for freshly constructed nodes without an explicit type. */
 case object UnassignedType extends AtomicType {
-  def classTag = throw new SlickException("UnassignedType does not have a ClassTag")
+  def classTag(implicit global: GlobalTypes) = throw new SlickException("UnassignedType does not have a ClassTag")
 }
 
 /** A type with a name, as used by tables.
@@ -228,28 +229,19 @@ case object UnassignedType extends AtomicType {
  * of the structural view but must update the AST at the end of the phase
  * so that all NominalTypes with the same symbol have the same structural
  * view. */
-final case class NominalType(sym: TypeSymbol, structuralView: Type) extends Type {
-  override def toString = s"$sym<$structuralView>"
-  def withStructuralView(t: Type): NominalType =
-    if(t == structuralView) this else copy(structuralView = t)
-  override def structural: Type = structuralView.structural
-  override def select(sym: TermSymbol)(implicit global: GlobalTypes): Type = {
-    val str = global.get(this.sym).getOrElse(UnassignedType)
-    if(str != structuralView) throw new SlickException("Structural views for "+this.sym+" do not match\n   local: "+structuralView+"\n  global: "+str)
-    structuralView.select(sym)
-  }
-  def mapChildren(f: Type => Type): NominalType = {
-    val struct2 = f(structuralView)
-    if(struct2 eq structuralView) this
-    else new NominalType(sym, struct2)
-  }
-  override final def childrenForeach[R](f: Type => R): Unit = f(structuralView)
-  def children: ConstArray[Type] = ConstArray(structuralView)
-  def sourceNominalType: NominalType = structuralView match {
+final case class NominalType(sym: TypeSymbol) extends Type {
+  override def toString = sym.toString
+  override def structural(implicit global: GlobalTypes): Type = structuralView.structural
+  override def select(sym: TermSymbol)(implicit global: GlobalTypes): Type = structuralView.select(sym)
+  def mapChildren(f: Type => Type): NominalType = this
+  override final def childrenForeach[R](f: Type => R): Unit = ()
+  def children: ConstArray[Type] = ConstArray.empty
+  def structuralView(implicit global: GlobalTypes): Type = global.get(this.sym).getOrElse(UnassignedType)
+  def sourceNominalType(implicit global: GlobalTypes): NominalType = structuralView match {
     case n: NominalType => n.sourceNominalType
     case _ => this
   }
-  def classTag = structuralView.classTag
+  def classTag(implicit global: GlobalTypes) = structuralView.classTag
 }
 
 /** A Type that carries a Scala type argument */
@@ -306,9 +298,24 @@ class TypeUtil(val tpe: Type) extends AnyVal {
     b.result
   }
 
+  def collectRec[T](pf: PartialFunction[Type, T])(implicit global: GlobalTypes): ConstArray[T] = {
+    val retNull: (Type => T) = (_ => null.asInstanceOf[T])
+    val b = ConstArray.newBuilder[T]()
+    def f(n: Type): Unit = {
+      val r = pf.applyOrElse(n, retNull)
+      if(r.asInstanceOf[AnyRef] ne null) b += r
+      n match {
+        case t: NominalType => f(t.structuralView)
+        case _ => n.childrenForeach(f)
+      }
+    }
+    f(tpe)
+    b.result
+  }
+
   def containsSymbol(tss: scala.collection.Set[TypeSymbol]): Boolean = {
     if(tss.isEmpty) false else tpe match {
-      case NominalType(ts, exp) => tss.contains(ts) || exp.containsSymbol(tss)
+      case NominalType(ts) => tss.contains(ts)
       case t: AtomicType => false
       case t => t.children.exists(_.containsSymbol(tss))
     }
@@ -338,11 +345,12 @@ trait ScalaType[T] extends TypedType[T] {
   def ordered: Boolean
   def scalaOrderingFor(ord: Ordering): scala.math.Ordering[T]
   final def scalaType = this
-  final def isPrimitive = classTag.runtimeClass.isPrimitive
+  final def isPrimitive(implicit global: GlobalTypes) = classTag.runtimeClass.isPrimitive
 }
 
-class ScalaBaseType[T](implicit val classTag: ClassTag[T], val ordering: scala.math.Ordering[T]) extends ScalaType[T] with BaseTypedType[T] {
-  override def toString = classTag.toString.replaceFirst("^java.lang.", "")
+class ScalaBaseType[T](implicit val _classTag: ClassTag[T], val ordering: scala.math.Ordering[T]) extends ScalaType[T] with BaseTypedType[T] {
+  override def toString = _classTag.toString.replaceFirst("^java.lang.", "")
+  def classTag(implicit global: GlobalTypes) = _classTag
   def nullable = false
   def ordered = ordering ne null
   def scalaOrderingFor(ord: Ordering) = {
@@ -358,15 +366,15 @@ class ScalaBaseType[T](implicit val classTag: ClassTag[T], val ordering: scala.m
       }
     }
   }
-  override def hashCode = classTag.hashCode
+  override def hashCode = _classTag.hashCode
   override def equals(o: Any) = o match {
-    case t: ScalaBaseType[_] => classTag == t.classTag
+    case t: ScalaBaseType[_] => _classTag == t._classTag
     case _ => false
   }
 }
 
 class ErasedScalaBaseType[T, E](implicit val erasure: ScalaBaseType[E], val ct: ClassTag[T]) extends ScalaBaseType[T]()(ct, null) {
-  override def toString = classTag.toString.replaceFirst("^slick.ast.", "") + "/" + erasure
+  override def toString = ct.toString.replaceFirst("^slick.ast.", "") + "/" + erasure
 }
 
 object ScalaBaseType {
@@ -386,12 +394,12 @@ object ScalaBaseType {
   private[this] val all: Map[ClassTag[_], ScalaBaseType[_]] =
     Seq(booleanType, bigDecimalType, byteType, charType, doubleType,
       floatType, intType, longType, nullType, shortType, stringType,
-      optionDiscType).map(s => (s.classTag, s)).toMap
+      optionDiscType).map(s => (s._classTag, s)).toMap
 
   def apply[T](implicit classTag: ClassTag[T], ordering: scala.math.Ordering[T] = null): ScalaBaseType[T] =
     all.getOrElse(classTag, new ScalaBaseType[T]).asInstanceOf[ScalaBaseType[T]]
 
-  def unapply[T](t: ScalaBaseType[T]) = Some((t.classTag,t.ordering))
+  def unapply[T](t: ScalaBaseType[T]) = Some((t._classTag,t.ordering))
 }
 
 /** A phantom type for Option discriminator columns. Values are of type Int. */

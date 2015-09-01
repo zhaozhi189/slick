@@ -4,7 +4,7 @@ import scala.language.existentials
 import java.sql.{PreparedStatement, ResultSet}
 import slick.relational._
 import slick.SlickException
-import slick.ast.ScalaBaseType
+import slick.ast.{GlobalTypes, ScalaBaseType}
 
 /** Specialized JDBC ResultConverter for non-`Option` values. */
 class BaseResultConverter[@specialized(Byte, Short, Int, Long, Char, Float, Double, Boolean) T](val ti: JdbcType[T], val name: String, val idx: Int) extends ResultConverter[JdbcResultConverterDomain, T] {
@@ -38,7 +38,7 @@ class OptionResultConverter[@specialized(Byte, Short, Int, Long, Char, Float, Do
   override def getDumpInfo = super.getDumpInfo.copy(mainInfo = s"idx=$idx", attrInfo = ": " + ti)
   def width = 1
   def getOrElse(default: () => T): DefaultingResultConverter[T] =
-    if(ti.scalaType.isPrimitive) new DefaultingResultConverter[T](ti, default, idx)
+    if(ti.scalaType.isPrimitive(GlobalTypes.local)) new DefaultingResultConverter[T](ti, default, idx)
     else new DefaultingResultConverter[T](ti, default, idx) {
       override def read(pr: ResultSet) = {
         val v = ti.getValue(pr, idx)

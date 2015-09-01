@@ -283,13 +283,13 @@ class RewriteJoins extends Phase {
     b
   }
 
-  def and(ns: IndexedSeq[Node]): Node =
+  def and(ns: IndexedSeq[Node])(implicit global: GlobalTypes): Node =
     if(ns.isEmpty) LiteralNode(true) else ns.reduceLeft { (p1, p2) =>
       val t1 = p1.nodeType.structural
       Library.And.typed(if(t1.isInstanceOf[OptionType]) t1 else p2.nodeType.structural, p1, p2)
     }
 
-  def and(p1Opt: Option[Node], p2: Node): Node = p1Opt.fold(p2) { p1 =>
+  def and(p1Opt: Option[Node], p2: Node)(implicit global: GlobalTypes): Node = p1Opt.fold(p2) { p1 =>
     val t1 = p1.nodeType.structural
     Library.And.typed(if(t1.isInstanceOf[OptionType]) t1 else p2.nodeType.structural, p1, p2)
   }

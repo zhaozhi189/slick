@@ -32,8 +32,8 @@ abstract class CodeGen extends Phase {
         logger.debug("Compiled server-side to:", nss)
         nss
       }
-      needed ++= nfrom.nodeType.collect { case NominalType(ts, _) => ts }.toSeq
-      needed ++= nmap.get.nodeType.collect { case NominalType(ts, _) => ts }.toSeq
+      needed ++= nfrom.nodeType.collect { case NominalType(ts) => ts }.toSeq
+      needed ++= nmap.get.nodeType.collect { case NominalType(ts) => ts }.toSeq
       rsm.copy(from = nfrom, map = nmap.get) :@ rsm.nodeType
     }
     state.global --= (state.global.symbols -- needed)

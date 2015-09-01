@@ -217,7 +217,7 @@ trait JdbcActionComponent extends SqlActionComponent { driver: JdbcDriver =>
           val sql = findSql(compiled)
           new StreamingInvokerAction[R, Any, Effect] { streamingAction =>
             protected[this] def createInvoker(sql: Iterable[String]) = createQueryInvoker(rsm, param, sql.head)
-            protected[this] def createBuilder = ct.cons.createBuilder(ct.elementType.classTag).asInstanceOf[Builder[Any, R]]
+            protected[this] def createBuilder = ct.cons.createBuilder(ct.elementType.classTag(GlobalTypes.local)).asInstanceOf[Builder[Any, R]]
             def statements = List(sql)
             override def getDumpInfo = super.getDumpInfo.copy(name = "result")
           }

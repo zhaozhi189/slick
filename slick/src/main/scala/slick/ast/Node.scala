@@ -249,7 +249,7 @@ final case class Pure(value: Node, identity: TypeSymbol = new AnonTypeSymbol) ex
     val this2: Self = mapChildren(_.infer(scope, typeChildren), keepType = true)
     if(!hasType) {
       global += (identity -> this2.value.nodeType)
-      this2 :@ CollectionType(TypedCollectionTypeConstructor.seq, NominalType(identity, this2.value.nodeType))
+      this2 :@ CollectionType(TypedCollectionTypeConstructor.seq, NominalType(identity))
     }
     else this2
   }
@@ -371,7 +371,7 @@ final case class GroupBy(fromGen: TermSymbol, from: Node, by: Node, identity: Ty
     val this2 = if((from2 eq from) && (by2 eq by)) this else copy(from = from2, by = by2)
     if(!hasType) {
       global += identity -> by2.nodeType
-      val tpe = CollectionType(from2Type.cons, ProductType(ConstArray(NominalType(identity, by2.nodeType), CollectionType(TypedCollectionTypeConstructor.seq, from2Type.elementType))))
+      val tpe = CollectionType(from2Type.cons, ProductType(ConstArray(NominalType(identity), CollectionType(TypedCollectionTypeConstructor.seq, from2Type.elementType))))
       this2 :@ tpe
     } else this2 :@ nodeType
   }
@@ -609,7 +609,7 @@ object FwdPath {
 /** A Node representing a database table. */
 final case class TableNode(schemaName: Option[String], tableName: String, identity: TableIdentitySymbol, baseIdentity: TableIdentitySymbol)(val driverTable: Any) extends NullaryNode with SimplyTypedNode with TypeGenerator {
   type Self = TableNode
-  def buildType = CollectionType(TypedCollectionTypeConstructor.seq, NominalType(identity, UnassignedType))
+  def buildType = CollectionType(TypedCollectionTypeConstructor.seq, NominalType(identity))
   def rebuild = copy()(driverTable)
   override def getDumpInfo = super.getDumpInfo.copy(name = "Table", mainInfo = schemaName.map(_ + ".").getOrElse("") + tableName)
 }
@@ -695,10 +695,13 @@ final case class OptionFold(from: Node, ifEmpty: Node, map: Node, gen: TermSymbo
   override def getDumpInfo = super.getDumpInfo.copy(mainInfo = "")
 }
 
-final case class GetOrElse(child: Node, default: () => Any) extends UnaryNode with SimplyTypedNode {
+final case class GetOrElse(child: Node, default: () => Any) extends UnaryNode {
   type Self = GetOrElse
   protected[this] def rebuild(ch: Node) = copy(child = ch)
-  protected def buildType = child.nodeType.structural.asOptionType.elementType
+  def withInferredType(scope: SymbolScope, typeChildren: Boolean)(implicit global: GlobalTypes): Self = {
+    val this2: Self = mapChildren(_.infer(scope, typeChildren), keepType = true)
+    if(!hasType) (this2 :@ this2.child.nodeType.structural.asOptionType.elementType).asInstanceOf[Self] else this2
+  }
   override def getDumpInfo = super.getDumpInfo.copy(mainInfo = "")
 }
 

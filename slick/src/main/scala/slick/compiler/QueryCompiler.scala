@@ -104,10 +104,6 @@ class QueryCompiler(val phases: Vector[Phase]) extends Logging {
     }
     if(GlobalConfig.verifyTypes) { //TODO
       val inTree = s2.tree.collectAll[NominalType] { case n => n.peekType.collect[NominalType] { case t: NominalType => t } }.toSeq
-      inTree.foreach { n =>
-        val str = s2.global.get(n.sym).getOrElse(UnassignedType)
-        if(str != n.structuralView) throw new SlickException("Structural views for "+n.sym+" do not match\n   local: "+n.structuralView+"\n  global: "+str)
-      }
       val usedSyms = inTree.map(_.sym).toSet
       val unusedSyms = s2.global.symbols -- usedSyms
       if(unusedSyms.nonEmpty)

@@ -41,7 +41,7 @@ trait MemoryQueryingProfile extends BasicProfile { driver: MemoryQueryingDriver 
 trait MemoryQueryingDriver extends BasicDriver with MemoryQueryingProfile { driver =>
 
   /** The driver-specific representation of types */
-  def typeInfoFor(t: Type): ScalaType[Any] = ((t.structural match {
+  def typeInfoFor(t: Type): ScalaType[Any] = ((t.structural(GlobalTypes.local) match {
     case t: ScalaType[_] => t
     case t: TypedType[_] => t.scalaType
     case o: OptionType => typeInfoFor(o.elementType).asInstanceOf[ScalaBaseType[_]].optionType
@@ -73,7 +73,7 @@ trait MemoryQueryingDriver extends BasicDriver with MemoryQueryingProfile { driv
       case n => n.mapChildren(ch => transformCountAll(gen, ch), keepType = true)
     }
 
-    def trType(t: Type): Type = t.structural match {
+    def trType(t: Type)(implicit global: GlobalTypes): Type = t.structural match {
       case t @ (_: StructType | _: ProductType | _: CollectionType | _: MappedScalaType | OptionType.NonPrimitive(_)) => t.mapChildren(trType)
       case t => typeInfoFor(t)
     }
@@ -87,7 +87,7 @@ trait MemoryQueryingDriver extends BasicDriver with MemoryQueryingProfile { driv
     }
 
     def createColumnConverter(n: Node, idx: Int, column: Option[FieldSymbol]): ResultConverter[MemoryResultConverterDomain, _] =
-      new QueryResultConverter(idx, typeInfoFor(n.nodeType.structural).nullable)
+      new QueryResultConverter(idx, typeInfoFor(n.nodeType.structural(GlobalTypes.local)).nullable)
 
     class QueryResultConverter(ridx: Int, nullable: Boolean) extends ResultConverter[MemoryResultConverterDomain, Any] {
       def read(pr: MemoryResultConverterDomain#Reader) = {

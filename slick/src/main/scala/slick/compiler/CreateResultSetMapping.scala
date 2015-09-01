@@ -13,22 +13,25 @@ class CreateResultSetMapping extends Phase {
   val name = "createResultSetMapping"
 
   def apply(state: CompilerState) = state.map { n =>
-    import state.implicitGlobal
-    val tpe = state.get(Phase.removeMappedTypes).get
+    //import state.implicitGlobal
+    val (tpe, tpeGlobal) = state.get(Phase.removeMappedTypes).get
     ClientSideOp.mapServerSide(n, keepType = false) { ch =>
-      val syms = ch.nodeType.structural match {
-        case StructType(defs) => defs.map(_._1)
-        case CollectionType(_, Type.Structural(StructType(defs))) => defs.map(_._1)
-        case t => throw new SlickException("No StructType found at top level: "+t)
+      val syms = {
+        import state.implicitGlobal
+        ch.nodeType.structural(state.global) match {
+          case StructType(defs) => defs.map(_._1)
+          case CollectionType(_, Type.Structural(StructType(defs))) => defs.map(_._1)
+          case t => throw new SlickException("No StructType found at top level: "+t)
+        }
       }
       val gen = new AnonSymbol
       (tpe match {
         case CollectionType(cons, el) =>
-          ResultSetMapping(gen, collectionCast(ch, cons).infer(), createResult(Ref(gen) :@ ch.nodeType.asCollectionType.elementType, el, syms))
+          ResultSetMapping(gen, collectionCast(ch, cons).infer()(state.global), createResult(Ref(gen) :@ ch.nodeType.asCollectionType.elementType, el, syms, tpeGlobal, state.global))
         case t =>
-          ResultSetMapping(gen, ch, createResult(Ref(gen) :@ ch.nodeType.asCollectionType.elementType, t, syms))
+          ResultSetMapping(gen, ch, createResult(Ref(gen) :@ ch.nodeType.asCollectionType.elementType, t, syms, tpeGlobal, state.global))
       })
-    }.infer()
+    }.infer()(state.global)
   }
 
   def collectionCast(ch: Node, cons: CollectionTypeConstructor): Node = ch.nodeType match {
@@ -38,7 +41,8 @@ class CreateResultSetMapping extends Phase {
 
   /** Create a structured return value for the client side, based on the
     * result type (which may contain MappedTypes). */
-  def createResult(ref: Ref, tpe: Type, syms: ConstArray[TermSymbol])(implicit global: GlobalTypes): Node = {
+  def createResult(ref: Ref, tpe: Type, syms: ConstArray[TermSymbol], tpeGlobal: GlobalTypes, refGlobal: GlobalTypes): Node = {
+    implicit def global = tpeGlobal
     var curIdx = 0
     def f(tpe: Type): Node = {
       logger.debug("Creating mapping from "+tpe)
@@ -50,7 +54,7 @@ class CreateResultSetMapping extends Phase {
         case t: MappedScalaType =>
           TypeMapping(f(t.baseType), t.mapper, t.classTag)
         case o @ OptionType(Type.Structural(el)) if !el.isInstanceOf[AtomicType] =>
-          val discriminator = Select(ref, syms(curIdx)).infer()
+          val discriminator = Select(ref, syms(curIdx)).infer()(refGlobal)
           curIdx += 1
           val data = f(o.elementType)
           RebuildOption(discriminator, data)
@@ -58,7 +62,7 @@ class CreateResultSetMapping extends Phase {
           curIdx += 1
           // Assign the original type. Inside a RebuildOption the actual column type will always be
           // Option-lifted but we can still treat it as the base type when the discriminator matches.
-          val sel = Select(ref, syms(curIdx-1)).infer()
+          val sel = Select(ref, syms(curIdx-1)).infer()(refGlobal)
           val tSel = t.structuralRec
           if(sel.nodeType.structuralRec == tSel) sel else Library.SilentCast.typed(tSel, sel)
       }
@@ -71,10 +75,10 @@ class CreateResultSetMapping extends Phase {
   * to be used later for building the ResultSetMapping. */
 class RemoveMappedTypes extends Phase {
   val name = "removeMappedTypes"
-  type State = Type
+  type State = (Type, GlobalTypes)
 
   def apply(state: CompilerState) =
-    state.copy(tree = removeTypeMapping(state.tree)) + (this -> state.tree.nodeType)
+    state.copy(tree = removeTypeMapping(state.tree)) + (this -> (state.tree.nodeType, state.global.snapshot))
 
   /** Remove TypeMapping nodes and MappedTypes */
   def removeTypeMapping(n: Node): Node = n match {
